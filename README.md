@@ -9,8 +9,12 @@ HTML file, zero dependencies, no build step — just open `index.html` in a brow
 - **Tap/click a tile** to walk there.
 - **Drag the warm-colored rotating bar** to turn it in 90° steps. It can carry you
   while it turns.
-- Reach the glowing door to finish a chapter. Three chapters total; progress is
+- Reach the glowing door to finish a chapter. Four chapters total; progress is
   saved in `localStorage`.
+- Chapter IV has **two travelers** (a mother and child, after Monument Valley 2).
+  Tap a traveler to select them; each must reach their own door, they can't pass
+  through each other, and the one rotating bridge serves both paths in different
+  orientations.
 
 ## The trick
 

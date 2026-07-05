@@ -112,6 +112,33 @@ const LEVELS = [
       {x:4,y:4,w:1,d:1,t:0.8,h:1.0},
       {x:-2,y:-1,w:1,d:1,t:1.4,h:0.9}
     ]
+  },
+  {
+    numeral:"IV", name:"The Two",
+    hint:"Two travelers, one bridge. Tap a traveler to choose them; each seeks their own door.",
+    sky:["#f4cdd6","#7e5578"], sun:{x:.78,y:.22,r:.055,c:"rgba(255,240,225,.9)"},
+    stars:true,
+    block:{top:"#f0d6dc",left:"#cfa0b1",right:"#a17089"},
+    rotBlock:{top:"#f0cfa6",left:"#d8a76f",right:"#b07c4c"},
+    decoBlock:{top:"#e3c3cc",left:"#bd8fa0",right:"#8f6078"},
+    door:"#4d2444", glow:"#ffd9a0", particle:"255,225,235",
+    statics:[[0,6,0],[0,5,0],[0,4,0],[0,0,0],[0,-1,0],
+             [-3,2,0],[-2,2,0],[2,2,0],[3,2,0]],
+    rot:{p:[0,2], z:0, cells:[[-1,0],[0,0],[1,0]]},
+    chars:[
+      {start:[0,6,0],  doorAt:[0,-1,0]},
+      {start:[-3,2,0], doorAt:[3,2,0], child:true}
+    ],
+    start:[0,6,0], doorAt:[0,-1,0],
+    deco:[
+      {x:0,y:-1,w:1,d:1,t:-0.55,h:2.4},
+      {x:3,y:2, w:1,d:1,t:-0.55,h:2.4},
+      {x:0,y:6, w:1,d:1,t:-0.55,h:1.4},
+      {x:-3,y:2,w:1,d:1,t:-0.55,h:1.4},
+      {x:-1,y:5,w:1,d:1,t:1.6,h:2.15},
+      {x:1, y:5,w:1,d:1,t:1.6,h:2.15},
+      {x:-1,y:5,w:3,d:1,t:2.1,h:0.5}
+    ]
   }
 ];
 /* LEVELS-END */
@@ -132,7 +159,8 @@ const TH = 0.55;              // walkway slab thickness (grid units)
 let level=null, levelIdx=0;
 let nodes=[], edges=new Map(); // id -> Set(id)
 let rotor=null;               // {p,z,cells,rot,angle, anim}
-let ch=null;                  // character
+let chs=[], sel=0;            // characters + selected index
+let doorTiles=[];             // one door per character
 let u=48, ox=0, oy=0;         // scale + screen offset
 let mode="title";             // title | play | entering | card | end
 let pulses=[], particles=[], stars=[];
@@ -167,8 +195,14 @@ function loadLevel(i){
   rotor={p:level.rot.p.slice(), z:level.rot.z, rot:0, angle:0, anim:null, drag:null};
   level.rot.cells.forEach((c,j)=>nodes.push({id:"r"+j, kind:"rot", bx:c[0], by:c[1]}));
   buildEdges();
-  const st=nodes.find(n=>{const p=nodePos(n); return p[0]===level.start[0]&&p[1]===level.start[1]&&p[2]===level.start[2];});
-  ch={node:st, path:[], t:0, alpha:1, entered:false};
+  const defs=level.chars||[{start:level.start, doorAt:level.doorAt}];
+  chs=defs.map(d=>({
+    node:nodes.find(n=>{const p=nodePos(n); return p[0]===d.start[0]&&p[1]===d.start[1]&&p[2]===d.start[2];}),
+    path:[], t:0, alpha:1, entering:false, entered:false,
+    doorAt:d.doorAt, small:!!d.child
+  }));
+  sel=0;
+  doorTiles=defs.map(d=>d.doorAt);
   fitLevel();
   initAtmosphere();
   showCard(level.numeral, level.name, level.hint, true);
@@ -188,8 +222,8 @@ function buildEdges(){
   }
 }
 
-function bfs(from,to){
-  if(from===to) return null;
+function bfs(from,to,blocked){
+  if(from===to||(blocked&&blocked.has(to.id))) return null;
   const prev=new Map([[from.id,null]]), q=[from.id];
   while(q.length){
     const id=q.shift();
@@ -198,7 +232,8 @@ function bfs(from,to){
       while(c!==from.id){ path.unshift(nodes.find(n=>n.id===c)); c=prev.get(c); }
       return path;
     }
-    for(const nx of edges.get(id)) if(!prev.has(nx)){ prev.set(nx,id); q.push(nx); }
+    for(const nx of edges.get(id))
+      if(!prev.has(nx)&&!(blocked&&blocked.has(nx))){ prev.set(nx,id); q.push(nx); }
   }
   return null;
 }
@@ -211,7 +246,7 @@ function fitLevel(){
   level.statics.forEach(s=>acc(s[0],s[1],s[2]));
   for(let k=0;k<4;k++) level.rot.cells.forEach(c=>{ const [dx,dy]=rotCW(c[0],c[1],k); acc(rotor.p[0]+dx,rotor.p[1]+dy,rotor.z); });
   level.deco.forEach(d=>{ acc(d.x,d.y,d.t); acc(d.x+d.w-1,d.y+d.d-1,d.t-d.h); acc(d.x,d.y+d.d-1,d.t); acc(d.x+d.w-1,d.y,d.t); });
-  acc(level.doorAt[0],level.doorAt[1],level.doorAt[2]+1.4);
+  for(const d of (level.chars||[{doorAt:level.doorAt}])) acc(d.doorAt[0],d.doorAt[1],d.doorAt[2]+1.4);
   minX-=1.7; maxX+=1.7; minY-=1.9; maxY+=1.6;
   u=Math.max(22, Math.min(W*0.94/(maxX-minX), H*0.88/(maxY-minY), 68));
   ox=W/2 - (minX+maxX)/2*u;
@@ -250,6 +285,7 @@ const sndStep =()=>tone(400+Math.random()*50,.09,"triangle",.02);
 const sndSnap =()=>tone(190,.13,"sine",.055,0,120);
 const sndNope =()=>tone(160,.12,"sine",.03,0,140);
 const sndChime=()=>{[440,554.37,659.25,880].forEach((f,i)=>tone(f,.7,"sine",.038,i*.13));};
+const sndMini =()=>{[554.37,880].forEach((f,i)=>tone(f,.5,"sine",.03,i*.11));};
 
 /* ============================ DRAWING =============================== */
 function mixc(a,b,t){
@@ -313,32 +349,41 @@ function drawDoor(gx,gy,z){
   ctx.restore();
 }
 
-function drawCharacter(px,py,alpha,bob){
+function drawCharacter(px,py,alpha,bob,sc){
+  const k=u*(sc||1);
   ctx.save(); ctx.globalAlpha=alpha;
   ctx.fillStyle="rgba(50,30,45,.20)";
-  ctx.beginPath(); ctx.ellipse(px,py,.33*u,.15*u,0,0,6.29); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(px,py,.33*k,.15*k,0,0,6.29); ctx.fill();
   const y=py-bob*u;
   ctx.fillStyle="#fdfbf4";
   ctx.beginPath();
-  ctx.moveTo(px-.26*u, y-.02*u);
-  ctx.bezierCurveTo(px-.27*u,y-.44*u, px-.15*u,y-.60*u, px,y-.60*u);
-  ctx.bezierCurveTo(px+.15*u,y-.60*u, px+.27*u,y-.44*u, px+.26*u,y-.02*u);
-  ctx.quadraticCurveTo(px,y+.06*u, px-.26*u,y-.02*u);
+  ctx.moveTo(px-.26*k, y-.02*k);
+  ctx.bezierCurveTo(px-.27*k,y-.44*k, px-.15*k,y-.60*k, px,y-.60*k);
+  ctx.bezierCurveTo(px+.15*k,y-.60*k, px+.27*k,y-.44*k, px+.26*k,y-.02*k);
+  ctx.quadraticCurveTo(px,y+.06*k, px-.26*k,y-.02*k);
   ctx.closePath(); ctx.fill();
   ctx.fillStyle="rgba(150,110,110,.22)";                       // right shade
   ctx.beginPath();
-  ctx.moveTo(px, y-.60*u);
-  ctx.bezierCurveTo(px+.15*u,y-.60*u, px+.27*u,y-.44*u, px+.26*u,y-.02*u);
-  ctx.quadraticCurveTo(px+.13*u,y+.02*u, px,y+.01*u);
+  ctx.moveTo(px, y-.60*k);
+  ctx.bezierCurveTo(px+.15*k,y-.60*k, px+.27*k,y-.44*k, px+.26*k,y-.02*k);
+  ctx.quadraticCurveTo(px+.13*k,y+.02*k, px,y+.01*k);
   ctx.closePath(); ctx.fill();
   ctx.fillStyle="#fdfbf4";
-  ctx.beginPath(); ctx.arc(px,y-.72*u,.125*u,0,6.29); ctx.fill();
+  ctx.beginPath(); ctx.arc(px,y-.72*k,.125*k,0,6.29); ctx.fill();
   ctx.beginPath();                                             // hat
-  ctx.moveTo(px-.115*u,y-.78*u); ctx.lineTo(px+.115*u,y-.78*u); ctx.lineTo(px,y-1.06*u);
+  ctx.moveTo(px-.115*k,y-.78*k); ctx.lineTo(px+.115*k,y-.78*k); ctx.lineTo(px,y-1.06*k);
   ctx.closePath(); ctx.fill();
   ctx.fillStyle="rgba(150,110,110,.20)";
-  ctx.beginPath(); ctx.moveTo(px,y-.78*u); ctx.lineTo(px+.115*u,y-.78*u); ctx.lineTo(px,y-1.06*u);
+  ctx.beginPath(); ctx.moveTo(px,y-.78*k); ctx.lineTo(px+.115*k,y-.78*k); ctx.lineTo(px,y-1.06*k);
   ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+function drawSelRing(px,py){
+  ctx.save();
+  ctx.globalAlpha=.45+.2*Math.sin(now/280);
+  ctx.strokeStyle="#fff"; ctx.lineWidth=2; ctx.setLineDash([4,5]);
+  ctx.beginPath(); ctx.ellipse(px,py,.46*u,.22*u,0,0,6.29); ctx.stroke();
   ctx.restore();
 }
 
@@ -357,18 +402,19 @@ function drawHintArc(){
 }
 
 /* =========================== SCENE FRAME ============================ */
-function charScreenPos(){
+function charScreenPos(c){
   // walking: interpolate between previous node and path[0]
-  if(ch.path.length){
-    const a=nodeVis(ch.node), b=nodeVis(ch.path[0]);
+  if(c.path.length){
+    const a=nodeVis(c.node), b=nodeVis(c.path[0]);
     const pa=P(a[0],a[1],a[2]), pb=P(b[0],b[1],b[2]);
-    const t=ch.t, e=t*t*(3-2*t);
+    const t=c.t, e=t*t*(3-2*t);
     return {x:pa.x+(pb.x-pa.x)*e, y:pa.y+(pb.y-pa.y)*e, bob:Math.sin(t*Math.PI)*.07,
             key:sortKey.apply(null, t<0.5?a:b)+0.31};
   }
-  const p=nodeVis(ch.node), pp=P(p[0],p[1],p[2]);
+  const p=nodeVis(c.node), pp=P(p[0],p[1],p[2]);
   return {x:pp.x,y:pp.y,bob:0,key:sortKey(p[0],p[1],p[2])+0.31};
 }
+function activeChar(c){ return !c.entering && !c.entered; }
 
 function frame(t){
   now=t;
@@ -420,16 +466,22 @@ function drawScene(t){
                 draw:()=>drawAlignedBox(d.x,d.y,d.w,d.d,d.t,d.h,level.decoBlock)});
   for(const n of nodes){
     const p=nodeVis(n), isRot=n.kind==="rot";
-    const isDoor=(n.kind==="static" && n.x===level.doorAt[0] && n.y===level.doorAt[1] && n.z===level.doorAt[2]);
+    const isDoor=(n.kind==="static" && doorTiles.some(d=>n.x===d[0]&&n.y===d[1]&&n.z===d[2]));
     items.push({key:sortKey(p[0],p[1],p[2]), draw:()=>{
       if(isRot) drawCellBox(p[0],p[1],rotor.angle,rotor.z,TH,level.rotBlock);
       else drawAlignedBox(n.x,n.y,1,1,n.z,TH,level.block);
       if(isDoor) drawDoor(n.x,n.y,n.z);
     }});
   }
-  if(ch && ch.alpha>0.01){
-    const c=charScreenPos();
-    items.push({key:c.key, draw:()=>drawCharacter(c.x,c.y,ch.alpha,c.bob)});
+  const nActive=chs.filter(activeChar).length;
+  for(const c of chs){
+    if(c.alpha<=0.01) continue;
+    const s=charScreenPos(c);
+    const isSel=(nActive>1 && chs[sel]===c && activeChar(c));
+    items.push({key:s.key, draw:()=>{
+      if(isSel) drawSelRing(s.x,s.y);
+      drawCharacter(s.x,s.y,c.alpha,s.bob,c.small?0.72:1);
+    }});
   }
   items.sort((a,b)=>a.key-b.key);
   for(const it of items) it.draw();
@@ -446,21 +498,26 @@ function drawScene(t){
 let lastT=0;
 function step(t){
   const dt=Math.min(50,t-lastT); lastT=t;
-  // walking
-  if(mode==="play" && ch.path.length){
-    ch.t+=dt/165;
-    if(ch.t>=1){
-      ch.node=ch.path.shift(); ch.t=0; sndStep();
-      if(!ch.path.length){
-        const p=nodePos(ch.node);
-        if(p[0]===level.doorAt[0]&&p[1]===level.doorAt[1]&&p[2]===level.doorAt[2]) enterDoor();
+  // walking + door entry, per character
+  if(mode==="play") for(const c of chs){
+    if(c.path.length){
+      c.t+=dt/165;
+      if(c.t>=1){
+        c.node=c.path.shift(); c.t=0; sndStep();
+        if(!c.path.length){
+          const p=nodePos(c.node);
+          if(p[0]===c.doorAt[0]&&p[1]===c.doorAt[1]&&p[2]===c.doorAt[2]){
+            c.entering=true;
+            if(chs.every(x=>!activeChar(x))) sndChime(); else sndMini();
+            if(chs[sel]===c){ const nxt=chs.findIndex(activeChar); if(nxt>=0) sel=nxt; }
+          }
+        }
       }
     }
-  }
-  // entering door
-  if(mode==="entering"){
-    ch.alpha=Math.max(0,ch.alpha-dt/650);
-    if(ch.alpha<=0 && !ch.entered){ ch.entered=true; levelComplete(); }
+    if(c.entering && !c.entered){
+      c.alpha=Math.max(0,c.alpha-dt/650);
+      if(c.alpha<=0){ c.entered=true; if(chs.every(x=>x.entered)) levelComplete(); }
+    }
   }
   // rotor snap animation
   if(rotor && rotor.anim){
@@ -478,7 +535,6 @@ function commitRotation(angle){
   buildEdges();
 }
 
-function enterDoor(){ mode="entering"; sndChime(); }
 
 /* ============================== FLOW ================================ */
 const cardEl=document.getElementById("card");
@@ -524,7 +580,7 @@ cv.addEventListener("pointerdown",e=>{
   const grabR=(maxOff*1.1+1.15)*u;
   const nearRot=Math.hypot(e.clientX-piv.x, e.clientY-piv.y-(-.25*u))<grabR;
   pdown={x:e.clientX,y:e.clientY, rotating:false,
-         canRotate: nearRot && !ch.path.length && !rotor.anim,
+         canRotate: nearRot && !chs.some(c=>c.path.length) && !rotor.anim,
          a0:Math.atan2(e.clientY-piv.y, e.clientX-piv.x), ang0:rotor.angle};
   cv.setPointerCapture(e.pointerId);
 });
@@ -548,8 +604,17 @@ function endPointer(e){
     const q=Math.PI/2, target=Math.round(rotor.angle/q)*q;
     if(Math.round(target/q)!==Math.round(pdown.ang0/q)){ rotatedThisLevel=true; sndSnap(); }
     rotor.anim={from:rotor.angle,to:target,t0:now,dur:240};
-  }else if(mode==="play" && !rotor.anim && !ch.path.length){
-    // tile click → walk
+  }else if(mode==="play" && !rotor.anim && !chs.some(c=>c.path.length)){
+    // tap a traveler → select them
+    for(let i=0;i<chs.length;i++){
+      const c=chs[i]; if(!activeChar(c)) continue;
+      const s=charScreenPos(c);
+      if(Math.hypot(e.clientX-s.x, e.clientY-(s.y-.45*u))<.55*u){
+        if(sel!==i){ sel=i; tone(660,.08,"triangle",.02); }
+        pdown=null; return;
+      }
+    }
+    // tile click → walk (selected traveler first, then the other)
     let best=null;
     for(const n of nodes){
       const g=nodePos(n), c=P(g[0],g[1],g[2]);
@@ -559,10 +624,17 @@ function endPointer(e){
         if(!best||k>best.k) best={n,k,g};
       }
     }
-    if(best && best.n!==ch.node){
-      const path=bfs(ch.node,best.n);
-      if(path){ ch.path=path; ch.t=0; }
-      else { pulses.push({g:best.g,t0:now}); sndNope(); }
+    if(best && !chs.some(c=>activeChar(c)&&c.node===best.n)){
+      const order=chs.map((c,i)=>i).filter(i=>activeChar(chs[i]));
+      order.sort((a,b)=>(a===sel?-1:0)-(b===sel?-1:0));
+      let moved=false;
+      for(const i of order){
+        const c=chs[i];
+        const blocked=new Set(chs.filter(x=>x!==c&&activeChar(x)).map(x=>x.node.id));
+        const path=bfs(c.node,best.n,blocked);
+        if(path){ c.path=path; c.t=0; sel=i; moved=true; break; }
+      }
+      if(!moved){ pulses.push({g:best.g,t0:now}); sndNope(); }
     }
   }
   pdown=null;
