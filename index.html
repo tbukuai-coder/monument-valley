@@ -139,6 +139,54 @@ const LEVELS = [
       {x:1, y:5,w:1,d:1,t:1.6,h:2.15},
       {x:-1,y:5,w:3,d:1,t:2.1,h:0.5}
     ]
+  },
+  {
+    numeral:"V", name:"The Inheritance",
+    hint:"Send the mother to the high door — the road she walked becomes the child's.",
+    sky:["#f5e7c8","#9fae87"], sun:{x:.3,y:.14,r:.05,c:"rgba(255,252,235,.95)"},
+    block:{top:"#eae3c2",left:"#c2b287",right:"#97865f"},
+    rotBlock:{top:"#f4c9b0",left:"#e09b7d",right:"#ba7057"},
+    decoBlock:{top:"#ddd2b0",left:"#b3a179",right:"#8a7856"},
+    door:"#4f431f", glow:"#fff3c4", particle:"250,240,205",
+    statics:[[1,5,0],[1,4,0],[1,3,0],[2,3,0],[3,3,0],
+             [7,3,2],[8,3,2],[9,3,2],[3,-1,0],[3,-2,0]],
+    rot:{p:[3,1], z:0, cells:[[0,-1],[0,0],[0,1]]},
+    chars:[
+      {start:[1,5,0],  doorAt:[9,3,2]},
+      {start:[3,-2,0], doorAt:[1,5,0], child:true}
+    ],
+    start:[1,5,0], doorAt:[9,3,2],
+    deco:[
+      {x:9,y:3, w:1,d:1,t:1.45,h:3.6},
+      {x:3,y:-2,w:1,d:1,t:-0.55,h:1.4},
+      {x:0,y:5, w:1,d:1,t:1.6,h:2.15},
+      {x:2,y:5, w:1,d:1,t:1.6,h:2.15},
+      {x:0,y:5, w:3,d:1,t:2.1,h:0.5},
+      {x:6,y:-1,w:1,d:1,t:0.9,h:1.0}
+    ]
+  },
+  {
+    numeral:"VI", name:"The Parting",
+    hint:"One road, two doors. They meet on the bridge one last time — and turn, and part.",
+    sky:["#3d3a63","#151329"], moon:{x:.75,y:.18,r:.05},
+    stars:true,
+    block:{top:"#9a94c4",left:"#6a6396",right:"#47426b"},
+    rotBlock:{top:"#e8c383",left:"#c69a55",right:"#9c763a"},
+    decoBlock:{top:"#837daa",left:"#5c5585",right:"#3e3960"},
+    door:"#1b1733", glow:"#ffd98f", particle:"200,195,255",
+    statics:[[-2,1,0],[-1,1,0],[0,1,0],[4,1,0],[5,1,0],[6,1,0]],
+    rot:{p:[2,1], z:0, cells:[[-1,0],[0,0],[1,0]]},
+    chars:[
+      {start:[-2,1,0], doorAt:[6,1,0]},
+      {start:[6,1,0],  doorAt:[-2,1,0], child:true}
+    ],
+    start:[-2,1,0], doorAt:[6,1,0],
+    deco:[
+      {x:-2,y:1,w:1,d:1,t:-0.55,h:2.4},
+      {x:6,y:1, w:1,d:1,t:-0.55,h:2.4},
+      {x:2,y:-2,w:1,d:1,t:1.2,h:0.9},
+      {x:2,y:4, w:1,d:1,t:0.6,h:1.0}
+    ]
   }
 ];
 /* LEVELS-END */
