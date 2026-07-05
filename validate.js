@@ -1,8 +1,8 @@
 // Headless validator for monument-valley/index.html levels.
 // Replicates the game's adjacency + mechanism rules and searches the full
-// joint state space: (char positions..., rotation, ferry, tide, orb).
+// joint state space: (char positions..., rotation, ferry, tide, orb holder, woken).
 const fs = require("fs");
-const html = fs.readFileSync(process.argv[2] || "/teamspace/studios/this_studio/monument-valley/index.html", "utf8");
+const html = fs.readFileSync(process.argv[2] || __dirname + "/index.html", "utf8");
 const m = html.match(/\/\* LEVELS-START \*\/\s*const LEVELS = ([\s\S]*?);\s*\/\* LEVELS-END \*\//);
 if (!m) { console.error("LEVELS block not found"); process.exit(1); }
 const LEVELS = eval("(" + m[1] + ")");
@@ -13,6 +13,7 @@ let fail = 0;
 LEVELS.forEach(L => {
   console.log(`\n=== Chapter ${L.numeral} — ${L.name} ===`);
   const hasRot = !!L.rot, hasFerry = !!L.ferry, hasTide = !!L.tide;
+  const needsLight = !!(L.rot && L.rot.needsLight);
   const water = t => hasTide ? (t ? L.tide.high : L.tide.low) : (L.sea ? L.sea.z : -1e9);
 
   // nodes for a mechanism state; submerged statics excluded
@@ -49,7 +50,7 @@ LEVELS.forEach(L => {
     return memo.get(k);
   }
 
-  // report cross-z (magic) edges across mechanism states
+  // report cross-z (magic) edges + overlaps across mechanism states
   const rots = hasRot ? [0, 1, 2, 3] : [0], fts = hasFerry ? [0, 1] : [0], tides = hasTide ? [0, 1] : [0];
   for (const r of rots) for (const f of fts) for (const td of tides) {
     const w = world(r, f, td), magic = [];
@@ -70,37 +71,47 @@ LEVELS.forEach(L => {
   }));
   const NC = chars.length;
   const orbNeeded = !!L.orbAt;
+  // state: [pos0..posN-1, rot, ft, tide, orbHolder(-1|ci), woken(0|1)]
+  const I_ROT = NC, I_FT = NC + 1, I_TD = NC + 2, I_ORB = NC + 3, I_WK = NC + 4;
 
-  // state: [pos0..posN-1, rot, ft, tide, orb]; pos = nodeId or "DONE"
+  function wake(s) { // sleeping bridge wakes (permanently) when the held light is near
+    if (!needsLight || s[I_WK] || s[I_ORB] < 0) return s;
+    const p = s[s[I_ORB]]; if (p === "DONE") return s;
+    const n = world(s[I_ROT], s[I_FT], s[I_TD]).byId[p];
+    if (n && Math.abs(n.x - L.rot.p[0]) + Math.abs(n.y - L.rot.p[1]) <= 2) { s = s.slice(); s[I_WK] = 1; }
+    return s;
+  }
+
   function next(state) {
-    const rot = state[NC], ft = state[NC + 1], tide = state[NC + 2], orb = state[NC + 3];
+    const rot = state[I_ROT], ft = state[I_FT], tide = state[I_TD], orb = state[I_ORB];
     const w = world(rot, ft, tide), out = [];
     for (let ci = 0; ci < NC; ci++) {
       const p = state[ci]; if (p === "DONE") continue;
-      if (!w.edges.has(p)) continue; // shouldn't happen (drown guard), but be safe
+      if (!w.edges.has(p)) continue;
       for (const o of w.edges.get(p)) {
         if (state.some((q, j) => j < NC && j !== ci && q === o)) continue; // occupied
         const s = state.slice();
         const n = w.byId[o], d = chars[ci].door;
         let norb = orb;
-        if (L.orbAt && !orb && n.x === L.orbAt[0] && n.y === L.orbAt[1] && n.z === L.orbAt[2]) norb = 1;
+        if (L.orbAt && orb < 0 && n.x === L.orbAt[0] && n.y === L.orbAt[1] && n.z === L.orbAt[2]) norb = ci;
         const atDoor = n.x === d[0] && n.y === d[1] && n.z === d[2];
-        s[ci] = (atDoor && (!orbNeeded || norb)) ? "DONE" : o;
-        s[NC + 3] = norb;
-        out.push({ s, op: 0 });
+        s[ci] = (atDoor && (!orbNeeded || norb >= 0)) ? "DONE" : o;
+        s[I_ORB] = norb;
+        out.push({ s: wake(s), op: 0 });
       }
     }
-    if (hasRot) for (const dr of [1, 3]) { const s = state.slice(); s[NC] = (rot + dr) % 4; out.push({ s, op: 1 }); }
-    if (hasFerry) { const s = state.slice(); s[NC + 1] = 1 - ft; out.push({ s, op: 1 }); }
+    if (hasRot && (!needsLight || state[I_WK])) for (const dr of [1, 3]) {
+      const s = state.slice(); s[I_ROT] = (rot + dr) % 4; out.push({ s: wake(s), op: 1 });
+    }
+    if (hasFerry) { const s = state.slice(); s[I_FT] = 1 - ft; out.push({ s: wake(s), op: 1 }); }
     if (hasTide) {
       const nw = water(1 - tide);
-      // blocked if any active char stands on a static tile that would submerge
       const drown = state.slice(0, NC).some(p => p !== "DONE" && p[0] === "s" && w.byId[p] && w.byId[p].z < nw - 0.01);
-      if (!drown) { const s = state.slice(); s[NC + 2] = 1 - tide; out.push({ s, op: 1 }); }
+      if (!drown) { const s = state.slice(); s[I_TD] = 1 - tide; out.push({ s: wake(s), op: 1 }); }
     }
     return out;
   }
-  const start = [...chars.map(c => c.startId), 0, 0, 0, 0];
+  const start = wake([...chars.map(c => c.startId), 0, 0, 0, -1, needsLight ? 0 : 1]);
   const isGoal = s => chars.every((c, i) => s[i] === "DONE");
   const keyOf = s => s.join("|");
 
@@ -122,28 +133,32 @@ LEVELS.forEach(L => {
   const full = solve(999);
   if (noOps) { console.log(`  !! SOLVABLE WITHOUT ANY MECHANISM (${noOps.steps} steps) — puzzle broken`); fail++; }
   else console.log(`  ok: not solvable without using mechanisms`);
-  if (full) console.log(`  ok: solvable — ~${full.ops} mechanism uses, ~${full.steps} steps (${NC} traveler(s)${orbNeeded ? ", orb" : ""})`);
+  if (full) console.log(`  ok: solvable — ~${full.ops} mechanism uses, ~${full.steps} steps (${NC} traveler(s)${orbNeeded ? ", orb" : ""}${needsLight ? ", light-gated" : ""})`);
   else { console.log(`  !! NOT SOLVABLE AT ALL`); fail++; }
 
-  // stranding: goal reachable from every reachable state
+  // stranding: explore the reachable graph once, then reverse-BFS from goal states
   {
-    const q = [start], seen = new Set([keyOf(start)]), states = [];
+    const pred = new Map(), goals = [];
+    const q = [start], seen = new Map([[keyOf(start), start]]);
     while (q.length) {
-      const s = q.shift(); states.push(s);
-      for (const nx of next(s)) { const k = keyOf(nx.s); if (!seen.has(k)) { seen.add(k); q.push(nx.s); } }
+      const s = q.shift(), k = keyOf(s);
+      if (isGoal(s)) goals.push(k);
+      for (const nx of next(s)) {
+        const nk = keyOf(nx.s);
+        if (!pred.has(nk)) pred.set(nk, []);
+        pred.get(nk).push(k);
+        if (!seen.has(nk)) { seen.set(nk, nx.s); q.push(nx.s); }
+      }
+    }
+    const canReach = new Set(goals), rq = [...goals];
+    while (rq.length) {
+      const k = rq.shift();
+      for (const pk of (pred.get(k) || [])) if (!canReach.has(pk)) { canReach.add(pk); rq.push(pk); }
     }
     let stuck = 0;
-    for (const s0 of states) {
-      const q2 = [s0], s2 = new Set([keyOf(s0)]); let ok = false;
-      while (q2.length && !ok) {
-        const s = q2.shift();
-        if (isGoal(s)) { ok = true; break; }
-        for (const nx of next(s)) { const k = keyOf(nx.s); if (!s2.has(k)) { s2.add(k); q2.push(nx.s); } }
-      }
-      if (!ok) stuck++;
-    }
-    if (stuck) { console.log(`  !! ${stuck} reachable states cannot reach the goal (stranding)`); fail++; }
-    else console.log(`  ok: no stranding (${states.length} reachable states)`);
+    for (const k of seen.keys()) if (!canReach.has(k)) stuck++;
+    if (stuck) { console.log(`  !! ${stuck} of ${seen.size} reachable states cannot reach the goal (stranding)`); fail++; }
+    else console.log(`  ok: no stranding (${seen.size} reachable states)`);
   }
 });
 console.log(fail ? `\nFAIL: ${fail} problem(s)` : "\nALL LEVELS OK");

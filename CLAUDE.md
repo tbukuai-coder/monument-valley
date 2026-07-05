@@ -44,10 +44,16 @@ github.com/tbukuai-coder/monument-valley. See `ROADMAP.md` for planned work.
   rotator; riders ride), `ferry` (one draggable boat gliding a↔b; riders
   ride), `tide` + `floats` (two water levels; float nodes sit AT the water z;
   statics below water are removed from the graph; toggling is blocked if it
-  would submerge an occupied tile), `orbAt` (door stays locked until a
-  traveler ends a path on the orb tile). One rotator/ferry per level max.
-- Multi-character levels use `chars:[{start,doorAt,child?}]`; characters
-  block each other (BFS treats the other's tile as a wall). Legacy
+  would submerge an occupied tile), `orbAt` (ALL doors stay locked until any
+  traveler ends a path on the orb tile; the pick-upper carries it visibly).
+  `rot.needsLight:true` makes the rotator sleep (dark `rotDark` palette,
+  undraggable) until the orb carrier comes within manhattan distance 2 of the
+  pivot — then it wakes permanently (never re-sleeps; this is what makes
+  stranding impossible). One rotator/ferry per level max.
+- Multi-character levels use `chars:[{start,doorAt,child?,villager?}]`;
+  characters block each other (BFS treats the other's tile as a wall).
+  `villager:true` renders grey-robed with a round cap. Several characters may
+  share one door tile — each enters in turn (entering frees the tile). Legacy
   single-char levels use top-level `start`/`doorAt` — keep both fields set
   even on `chars` levels (fitLevel/back-compat reads them).
 - Door tiles must be **terminal** (dead ends): the engine only triggers

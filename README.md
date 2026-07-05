@@ -9,7 +9,7 @@ HTML file, zero dependencies, no build step — just open `index.html` in a brow
 - **Tap/click a tile** to walk there.
 - **Drag the warm-colored rotating bar** to turn it in 90° steps. It can carry you
   while it turns.
-- Reach the glowing door to finish a chapter. Nine chapters total; progress is
+- Reach the glowing door to finish a chapter. Ten chapters total; progress is
   saved in `localStorage`.
 - Chapters IV–VI have **two travelers** (a mother and child, after Monument
   Valley 2). Tap a traveler to select them; each must reach their own door, and
@@ -23,6 +23,9 @@ HTML file, zero dependencies, no build step — just open `index.html` in a brow
   connections reconfigure with the water level (VIII) — and a finale where you
   must fetch the **last fragment of light** from a high perch before the dark
   lighthouse door will open (IX).
+- Chapter X adds **villagers** — extra travelers in grey robes who must all
+  reach a shared refuge door, ferried one at a time by boat — and a **sleeping
+  bridge** that only wakes (permanently) when the carried light comes near it.
 
 ## The trick
 

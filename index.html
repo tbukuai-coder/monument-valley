@@ -254,6 +254,37 @@ const LEVELS = [
       {x:5,y:9,w:1,d:1,t:0.3,h:0.7},
       {x:-2,y:0,w:1,d:1,t:0.3,h:0.7}
     ]
+  },
+  {
+    numeral:"X", name:"The Refuge",
+    hint:"The dark bridge wakes only near the light. Bring every soul across the water.",
+    sky:["#4a5578","#1d2033"], moon:{x:.24,y:.16,r:.05},
+    stars:true,
+    sea:{z:0}, water:"30,58,84",
+    block:{top:"#a8b2cc",left:"#7681a3",right:"#515a78"},
+    rotBlock:{top:"#e8c383",left:"#c69a55",right:"#9c763a"},
+    rotDark:{top:"#5c5a6e",left:"#444358",right:"#313046"},
+    decoBlock:{top:"#96a0bc",left:"#687394",right:"#48506b"},
+    boat:{top:"#e0aa72",left:"#bd8148",right:"#8f5c30"},
+    door:"#141a30", glow:"#ffd98f", particle:"190,205,235",
+    statics:[[0,3,1],[1,3,1],[2,3,1],[3,3,1],[0,2,1],
+             [2,-1,1],[3,-1,1],[8,3,1],[9,3,1]],
+    rot:{p:[3,1], z:1, cells:[[-1,0],[0,0],[1,0]], needsLight:true},
+    ferry:{a:[4,-1], b:[7,3], z:1},
+    orbAt:[0,2,1],
+    chars:[
+      {start:[0,3,1],  doorAt:[9,3,1]},
+      {start:[2,-1,1], doorAt:[9,3,1], villager:true},
+      {start:[3,-1,1], doorAt:[9,3,1], villager:true}
+    ],
+    start:[0,3,1], doorAt:[9,3,1],
+    deco:[
+      {x:9,y:3, w:1,d:1,t:0.45,h:3.4},
+      {x:0,y:2, w:1,d:1,t:0.45,h:1.6},
+      {x:0,y:3, w:1,d:1,t:0.45,h:1.3},
+      {x:5,y:6, w:1,d:1,t:0.3,h:0.7},
+      {x:6,y:-3,w:1,d:1,t:0.3,h:0.7}
+    ]
   }
 ];
 /* LEVELS-END */
@@ -279,6 +310,7 @@ let doorTiles=[];             // one door per character
 let ferryS=null, tideS=null;  // boat + water-level state
 let orbHeld=null;             // character carrying the light, if any
 let usedFerry=false, usedTide=false;
+let rotWoken=true;            // needsLight rotators sleep until the light nears
 let u=48, ox=0, oy=0;         // scale + screen offset
 let mode="title";             // title | play | entering | card | end
 let pulses=[], particles=[], stars=[];
@@ -338,10 +370,14 @@ function loadLevel(i){
   chs=defs.map(d=>({
     node:nodes.find(n=>{const p=nodePos(n); return p[0]===d.start[0]&&p[1]===d.start[1]&&p[2]===d.start[2];}),
     path:[], t:0, alpha:1, entering:false, entered:false,
-    doorAt:d.doorAt, small:!!d.child
+    doorAt:d.doorAt, small:!!d.child, villager:!!d.villager
   }));
   sel=0;
-  doorTiles=defs.map(d=>d.doorAt);
+  rotWoken=!(level.rot && level.rot.needsLight);
+  const doorSeen=new Set();
+  doorTiles=defs.map(d=>d.doorAt).filter(d=>{
+    const k=d.join(","); if(doorSeen.has(k)) return false; doorSeen.add(k); return true;
+  });
   fitLevel();
   initAtmosphere();
   showCard(level.numeral, level.name, level.hint, true);
@@ -433,6 +469,7 @@ const sndMini =()=>{[554.37,880].forEach((f,i)=>tone(f,.5,"sine",.03,i*.11));};
 const sndSail =()=>tone(240,.22,"triangle",.03,0,180);
 const sndTide =()=>tone(85,.9,"sine",.055,0,55);
 const sndOrb  =()=>{[1318.5,1760].forEach((f,i)=>tone(f,.4,"sine",.03,i*.09));};
+const sndWake =()=>{[220,330,440].forEach((f,i)=>tone(f,.6,"triangle",.035,i*.1));};
 
 /* ============================ DRAWING =============================== */
 function mixc(a,b,t){
@@ -573,33 +610,40 @@ function drawDoor(gx,gy,z){
   ctx.restore();
 }
 
-function drawCharacter(px,py,alpha,bob,sc){
-  const k=u*(sc||1);
+function drawCharacter(px,py,alpha,bob,sc,vil){
+  const k=u*(sc||1), robe=vil?"#c6cddd":"#fdfbf4", shade=vil?"rgba(90,100,140,.28)":"rgba(150,110,110,.22)";
   ctx.save(); ctx.globalAlpha=alpha;
   ctx.fillStyle="rgba(50,30,45,.20)";
   ctx.beginPath(); ctx.ellipse(px,py,.33*k,.15*k,0,0,6.29); ctx.fill();
   const y=py-bob*u;
-  ctx.fillStyle="#fdfbf4";
+  ctx.fillStyle=robe;
   ctx.beginPath();
   ctx.moveTo(px-.26*k, y-.02*k);
   ctx.bezierCurveTo(px-.27*k,y-.44*k, px-.15*k,y-.60*k, px,y-.60*k);
   ctx.bezierCurveTo(px+.15*k,y-.60*k, px+.27*k,y-.44*k, px+.26*k,y-.02*k);
   ctx.quadraticCurveTo(px,y+.06*k, px-.26*k,y-.02*k);
   ctx.closePath(); ctx.fill();
-  ctx.fillStyle="rgba(150,110,110,.22)";                       // right shade
+  ctx.fillStyle=shade;                                         // right shade
   ctx.beginPath();
   ctx.moveTo(px, y-.60*k);
   ctx.bezierCurveTo(px+.15*k,y-.60*k, px+.27*k,y-.44*k, px+.26*k,y-.02*k);
   ctx.quadraticCurveTo(px+.13*k,y+.02*k, px,y+.01*k);
   ctx.closePath(); ctx.fill();
-  ctx.fillStyle="#fdfbf4";
+  ctx.fillStyle=robe;
   ctx.beginPath(); ctx.arc(px,y-.72*k,.125*k,0,6.29); ctx.fill();
-  ctx.beginPath();                                             // hat
-  ctx.moveTo(px-.115*k,y-.78*k); ctx.lineTo(px+.115*k,y-.78*k); ctx.lineTo(px,y-1.06*k);
-  ctx.closePath(); ctx.fill();
-  ctx.fillStyle="rgba(150,110,110,.20)";
-  ctx.beginPath(); ctx.moveTo(px,y-.78*k); ctx.lineTo(px+.115*k,y-.78*k); ctx.lineTo(px,y-1.06*k);
-  ctx.closePath(); ctx.fill();
+  if(vil){                                                     // round cap
+    ctx.beginPath(); ctx.arc(px,y-.80*k,.135*k,Math.PI,0); ctx.closePath(); ctx.fill();
+    ctx.fillStyle=shade;
+    ctx.beginPath(); ctx.arc(px,y-.80*k,.135*k,-Math.PI/2,0); ctx.lineTo(px,y-.80*k);
+    ctx.closePath(); ctx.fill();
+  }else{                                                       // pointed hat
+    ctx.beginPath();
+    ctx.moveTo(px-.115*k,y-.78*k); ctx.lineTo(px+.115*k,y-.78*k); ctx.lineTo(px,y-1.06*k);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle="rgba(150,110,110,.20)";
+    ctx.beginPath(); ctx.moveTo(px,y-.78*k); ctx.lineTo(px+.115*k,y-.78*k); ctx.lineTo(px,y-1.06*k);
+    ctx.closePath(); ctx.fill();
+  }
   ctx.restore();
 }
 
@@ -612,7 +656,7 @@ function drawSelRing(px,py){
 }
 
 function drawHintArc(){
-  if(!rotor||rotatedThisLevel||mode!=="play") return;
+  if(!rotor||!rotWoken||rotatedThisLevel||mode!=="play") return;
   const c=P(rotor.p[0],rotor.p[1],rotor.z), r=1.55*u, t=now/1000;
   ctx.save();
   ctx.globalAlpha=.35+.25*Math.sin(t*2.2);
@@ -692,7 +736,8 @@ function drawScene(t){
     const p=nodeVis(n);
     const isDoor=(n.kind==="static" && doorTiles.some(d=>n.x===d[0]&&n.y===d[1]&&n.z===d[2]));
     items.push({key:sortKey(p[0],p[1],p[2]), tz:p[2], draw:()=>{
-      if(n.kind==="rot") drawCellBox(p[0],p[1],rotor.angle,rotor.z,TH,level.rotBlock);
+      if(n.kind==="rot") drawCellBox(p[0],p[1],rotor.angle,rotor.z,TH,
+                                     rotWoken?level.rotBlock:(level.rotDark||level.rotBlock));
       else if(n.kind==="ferry") drawBoat(p[0],p[1],p[2],true);
       else if(n.kind==="float") drawBoat(p[0],p[1],p[2],false);
       else drawAlignedBox(n.x,n.y,1,1,n.z,TH,level.block);
@@ -711,7 +756,7 @@ function drawScene(t){
     const isSel=(nActive>1 && chs[sel]===c && activeChar(c));
     items.push({key:s.key, tz:ctz, draw:()=>{
       if(isSel) drawSelRing(s.x,s.y);
-      drawCharacter(s.x,s.y,c.alpha,s.bob,c.small?0.72:1);
+      drawCharacter(s.x,s.y,c.alpha,s.bob,c.small?0.72:(c.villager?0.85:1),c.villager);
       if(orbHeld===c){ ctx.globalAlpha=c.alpha; drawOrb(s.x+.24*u,s.y-(s.bob*u)-1.02*u,.55); ctx.globalAlpha=1; }
     }});
   }
@@ -750,7 +795,7 @@ function step(t){
           if(o && !orbHeld && p[0]===o[0]&&p[1]===o[1]&&p[2]===o[2]){
             orbHeld=c; sndOrb();
           }else if(p[0]===c.doorAt[0]&&p[1]===c.doorAt[1]&&p[2]===c.doorAt[2]){
-            if(level.orbAt && orbHeld!==c){ pulses.push({g:p,t0:now}); sndNope(); }
+            if(level.orbAt && !orbHeld){ pulses.push({g:p,t0:now}); sndNope(); }
             else{
               c.entering=true;
               if(chs.every(x=>!activeChar(x))) sndChime(); else sndMini();
@@ -764,6 +809,11 @@ function step(t){
       c.alpha=Math.max(0,c.alpha-dt/650);
       if(c.alpha<=0){ c.entered=true; if(chs.every(x=>x.entered)) levelComplete(); }
     }
+  }
+  // a sleeping bridge wakes when the carried light comes near (and stays awake)
+  if(level && rotor && level.rot.needsLight && !rotWoken && orbHeld && !orbHeld.entered){
+    const hp=nodePos(orbHeld.node);
+    if(Math.abs(hp[0]-rotor.p[0])+Math.abs(hp[1]-rotor.p[1])<=2){ rotWoken=true; sndWake(); }
   }
   // rotor snap animation
   if(rotor && rotor.anim){
@@ -839,7 +889,7 @@ cv.addEventListener("pointerdown",e=>{
   if(mode!=="play") return;
   const idle=!chs.some(c=>c.path.length) && !busy();
   let canRotate=false, a0=0, ang0=0;
-  if(rotor && idle){
+  if(rotor && idle && rotWoken){
     const piv=P(rotor.p[0],rotor.p[1],rotor.z);
     const maxOff=Math.max.apply(null, level.rot.cells.map(c=>Math.hypot(c[0],c[1])));
     canRotate=Math.hypot(e.clientX-piv.x, e.clientY-piv.y+.25*u)<(maxOff*1.1+1.15)*u;

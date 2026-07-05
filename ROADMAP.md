@@ -32,6 +32,31 @@ each section; nothing here is committed work. Keep the invariants from
       textarea JSON, shows all magic edges live (port of the validator), and
       exports a `LEVELS` entry. Would cut level-authoring iteration a lot.
 
+## MV2 parity (features from Monument Valley 2 not yet applied)
+
+- [ ] **Companion following** — child auto-follows the mother one tile behind;
+      the drama of the follower suddenly unable to follow. Biggest MV2 gap.
+- [ ] **Indirect cooperation** — two travelers in separated structures where
+      solving one side reshapes the other.
+- [ ] **Growth as architecture** — a vine/tree whose branches become walkable
+      nodes revealed in stages.
+- [ ] **Mid-chapter transformations** — palette/light shifts (eclipse moment)
+      and multi-diorama chapters with walk-off transitions.
+- [x] Two travelers, occupancy, riding together, parenthood arc (IV–VI).
+
+## MV3 parity (features from Monument Valley 3 not yet applied)
+
+- [ ] **Free sailing / hub sea** — steerable boat between islands; middle step:
+      branching ferry tracks or a sail-to-choose chapter hub.
+- [x] **Villagers as passengers** — Chapter X: grey-robed villagers who block,
+      ride the boat one at a time, and share a refuge door.
+- [x] **Light as a mechanism** — Chapter X: `needsLight` rotators sleep dark
+      until the carried orb comes near, then wake permanently.
+- [ ] **Rising sea as an arc** — early-chapter geometry revisited
+      part-drowned (pairs with "The Return" below).
+- [ ] **Weather/biomes** — rain, fog, bioluminescent night water.
+- [x] Open water, draggable boat, tide reconfiguration, lightkeeper arc (VII–IX).
+
 ## Mechanics backlog (each is a chapter hook)
 
 - [ ] **Totem companion** (MV1's Totem): a movable column that acts as a
