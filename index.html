@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Monument — a quiet homage</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#1a1420;font-family:Georgia,'Times New Roman',serif}
+  #c{position:fixed;inset:0;width:100vw;height:100vh;touch-action:none;display:block}
+  .overlay{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+           text-align:center;color:#fff;z-index:10;transition:opacity .9s ease;padding:24px;box-sizing:border-box}
+  .overlay.gone{opacity:0;pointer-events:none}
+  .overlay h1{font-weight:normal;font-size:clamp(30px,7vw,58px);letter-spacing:.45em;margin:0 0 10px .45em;
+              text-shadow:0 2px 24px rgba(0,0,0,.25)}
+  .overlay .numeral{font-size:clamp(22px,4.5vw,34px);letter-spacing:.4em;margin:0 0 6px .4em;opacity:.95}
+  .overlay .sub{font-style:italic;font-size:clamp(14px,2.6vw,19px);opacity:.85;margin:4px 0 0;max-width:34em}
+  .overlay .tap{font-size:clamp(12px,2.2vw,15px);letter-spacing:.35em;text-transform:uppercase;opacity:.7;
+                margin-top:42px;animation:breathe 2.6s ease-in-out infinite}
+  @keyframes breathe{0%,100%{opacity:.35}50%{opacity:.85}}
+  #title{background:linear-gradient(#f7dcc8,#e08d7e)}
+  #title h1,#title .sub,#title .tap{color:#5d2c33;text-shadow:none}
+  #card{background:rgba(20,14,26,.0);pointer-events:none}
+  #card .inner{background:rgba(22,15,28,.55);backdrop-filter:blur(3px);border-radius:14px;padding:26px 44px}
+  #mute{position:fixed;right:14px;bottom:12px;z-index:20;background:none;border:none;color:rgba(255,255,255,.55);
+        font-family:inherit;font-style:italic;font-size:14px;letter-spacing:.1em;cursor:pointer;padding:6px 8px}
+  #mute:hover{color:rgba(255,255,255,.9)}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="title" class="overlay">
+  <h1>MONUMENT</h1>
+  <p class="sub">a quiet homage to Monument Valley</p>
+  <p class="tap">tap to begin</p>
+</div>
+
+<div id="card" class="overlay gone"><div class="inner">
+  <p class="numeral" id="cardNumeral"></p>
+  <h1 id="cardName" style="font-size:clamp(20px,4.5vw,34px)"></h1>
+  <p class="sub" id="cardSub"></p>
+</div></div>
+
+<button id="mute" title="toggle sound">sound on</button>
+
+<script>
+"use strict";
+
+/* ============================== LEVELS ==============================
+   Coordinates are an isometric grid (x, y, z). Screen projection:
+   sx = x - y ;  sy = (x + y)/2 - z
+   Two tiles are connected iff they LOOK adjacent on screen
+   (|dsx| = 1 and |dsy| = 0.5) — this single rule gives both normal
+   adjacency and the Monument-Valley impossible-geometry links between
+   different heights. Rotators are bars of cells around a pivot,
+   rotated in 90° steps by dragging.                                   */
+/* LEVELS-START */
+const LEVELS = [
+  {
+    numeral:"I", name:"The Garden",
+    hint:"Tap a tile to walk. Drag the rose bridge to turn it.",
+    sky:["#f7dcc8","#e08d7e"], sun:{x:.24,y:.30,r:.085,c:"rgba(255,246,220,.9)"},
+    block:{top:"#f5e6cf",left:"#e0b490",right:"#bd8763"},
+    rotBlock:{top:"#f6c8b0",left:"#e2a082",right:"#bd775b"},
+    decoBlock:{top:"#ecd8bf",left:"#d2a67f",right:"#ae7a57"},
+    door:"#6d2f34", glow:"#ffd9a0", particle:"255,236,205",
+    statics:[[0,7,0],[0,6,0],[0,5,0],[0,4,0],[0,0,0],[0,-1,0]],
+    rot:{p:[0,2], z:0, cells:[[-1,0],[0,0],[1,0]]},
+    start:[0,7,0], doorAt:[0,-1,0],
+    deco:[
+      {x:0,y:-1,w:1,d:1,t:-0.55,h:2.6},
+      {x:0,y:7, w:1,d:1,t:-0.55,h:1.5},
+      {x:-1,y:5,w:1,d:1,t:1.6,h:2.15},
+      {x:1, y:5,w:1,d:1,t:1.6,h:2.15},
+      {x:-1,y:5,w:3,d:1,t:2.1,h:0.5},
+      {x:-3,y:2,w:1,d:1,t:0.7,h:1.0}
+    ]
+  },
+  {
+    numeral:"II", name:"The Crossing",
+    hint:"The bridge can carry you while it turns.",
+    sky:["#d3ece4","#69a2a8"], sun:{x:.72,y:.16,r:.05,c:"rgba(255,252,235,.95)"},
+    block:{top:"#d7f0ea",left:"#8ac4bb",right:"#5d968e"},
+    rotBlock:{top:"#f4c9b0",left:"#e09b7d",right:"#ba7057"},
+    decoBlock:{top:"#c4e2da",left:"#7fb3ab",right:"#578680"},
+    door:"#2f5265", glow:"#ffe9c9", particle:"235,255,250",
+    statics:[[1,5,0],[1,4,0],[1,3,0],[2,3,0],[3,3,0],[7,3,2],[8,3,2],[9,3,2]],
+    rot:{p:[3,1], z:0, cells:[[0,-1],[0,0],[0,1]]},
+    start:[1,5,0], doorAt:[9,3,2],
+    deco:[
+      {x:9,y:3,w:1,d:1,t:1.45,h:3.6},
+      {x:1,y:5,w:1,d:1,t:-0.55,h:1.4},
+      {x:-2,y:4,w:1,d:1,t:1.2,h:0.9},
+      {x:6,y:6,w:1,d:1,t:0.4,h:1.0}
+    ]
+  },
+  {
+    numeral:"III", name:"The Ascent",
+    hint:"What lines up, connects — however far apart it may be.",
+    sky:["#d8c6e6","#63527f"], moon:{x:.26,y:.18,r:.055},
+    stars:true,
+    block:{top:"#d5c8e8",left:"#a08ec4",right:"#73609a"},
+    rotBlock:{top:"#f0cfa6",left:"#d8a76f",right:"#b07c4c"},
+    decoBlock:{top:"#c3b4da",left:"#8f7cb5",right:"#66538b"},
+    door:"#3a2557", glow:"#ffd9a0", particle:"235,222,255",
+    statics:[[1,5,0],[1,4,0],[0,3,2],[0,4,2]],
+    rot:{p:[1,1], z:0, cells:[[-2,0],[-1,0],[0,0],[1,0],[2,0]]},
+    start:[1,5,0], doorAt:[0,4,2],
+    deco:[
+      {x:0,y:4,w:1,d:1,t:1.45,h:3.4},
+      {x:1,y:5,w:1,d:1,t:-0.55,h:1.3},
+      {x:4,y:4,w:1,d:1,t:0.8,h:1.0},
+      {x:-2,y:-1,w:1,d:1,t:1.4,h:0.9}
+    ]
+  }
+];
+/* LEVELS-END */
+
+/* ============================== SETUP =============================== */
+const cv = document.getElementById("c"), ctx = cv.getContext("2d");
+let W=0, H=0, DPR=1;
+function resize(){
+  DPR = Math.min(devicePixelRatio||1, 2);
+  W = innerWidth; H = innerHeight;
+  cv.width = W*DPR; cv.height = H*DPR;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  if (level) fitLevel();
+}
+addEventListener("resize", resize);
+
+const TH = 0.55;              // walkway slab thickness (grid units)
+let level=null, levelIdx=0;
+let nodes=[], edges=new Map(); // id -> Set(id)
+let rotor=null;               // {p,z,cells,rot,angle, anim}
+let ch=null;                  // character
+let u=48, ox=0, oy=0;         // scale + screen offset
+let mode="title";             // title | play | entering | card | end
+let pulses=[], particles=[], stars=[];
+let rotatedThisLevel=false;
+let now=0;
+
+const saveKey="monument-homage-progress";
+levelIdx = Math.min(parseInt(localStorage.getItem(saveKey)||"0",10)||0, LEVELS.length-1);
+
+/* ======================= GRID / PROJECTION ========================== */
+function rotCW(dx,dy,k){ for(let i=0;i<((k%4)+4)%4;i++){ const t=dx; dx=dy; dy=-t; } return [dx,dy]; }
+function P(gx,gy,z){ return { x: ox + (gx-gy)*u, y: oy + ((gx+gy)/2 - z)*u }; }
+function sortKey(gx,gy,z){ return (gx+gy) + z*0.62; }
+
+function nodePos(n){ // committed integer grid position
+  if(n.kind==="rot"){ const [dx,dy]=rotCW(n.bx,n.by,rotor.rot); return [rotor.p[0]+dx, rotor.p[1]+dy, rotor.z]; }
+  return [n.x,n.y,n.z];
+}
+function nodeVis(n){ // visual (possibly mid-rotation) grid position
+  if(n.kind==="rot"){
+    const a=rotor.angle, c=Math.cos(a), s=Math.sin(a);
+    return [rotor.p[0] + n.bx*c + n.by*s, rotor.p[1] - n.bx*s + n.by*c, rotor.z];
+  }
+  return [n.x,n.y,n.z];
+}
+
+/* ======================= LEVEL LOAD / GRAPH ========================= */
+function loadLevel(i){
+  levelIdx=i; level=LEVELS[i];
+  nodes=[]; pulses=[]; rotatedThisLevel=false;
+  level.statics.forEach((s,j)=>nodes.push({id:"s"+j, kind:"static", x:s[0],y:s[1],z:s[2]}));
+  rotor={p:level.rot.p.slice(), z:level.rot.z, rot:0, angle:0, anim:null, drag:null};
+  level.rot.cells.forEach((c,j)=>nodes.push({id:"r"+j, kind:"rot", bx:c[0], by:c[1]}));
+  buildEdges();
+  const st=nodes.find(n=>{const p=nodePos(n); return p[0]===level.start[0]&&p[1]===level.start[1]&&p[2]===level.start[2];});
+  ch={node:st, path:[], t:0, alpha:1, entered:false};
+  fitLevel();
+  initAtmosphere();
+  showCard(level.numeral, level.name, level.hint, true);
+  mode="play";
+}
+
+function buildEdges(){
+  edges=new Map(); nodes.forEach(n=>edges.set(n.id,new Set()));
+  for(let i=0;i<nodes.length;i++) for(let j=i+1;j<nodes.length;j++){
+    const a=nodePos(nodes[i]), b=nodePos(nodes[j]);
+    const dsx=(a[0]-a[1])-(b[0]-b[1]);
+    const dsy=((a[0]+a[1])/2-a[2])-((b[0]+b[1])/2-b[2]);
+    if(Math.abs(Math.abs(dsx)-1)<.01 && Math.abs(Math.abs(dsy)-0.5)<.01){
+      edges.get(nodes[i].id).add(nodes[j].id);
+      edges.get(nodes[j].id).add(nodes[i].id);
+    }
+  }
+}
+
+function bfs(from,to){
+  if(from===to) return null;
+  const prev=new Map([[from.id,null]]), q=[from.id];
+  while(q.length){
+    const id=q.shift();
+    if(id===to.id){
+      const path=[]; let c=id;
+      while(c!==from.id){ path.unshift(nodes.find(n=>n.id===c)); c=prev.get(c); }
+      return path;
+    }
+    for(const nx of edges.get(id)) if(!prev.has(nx)){ prev.set(nx,id); q.push(nx); }
+  }
+  return null;
+}
+
+/* ============================ FITTING =============================== */
+function fitLevel(){
+  let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;
+  const acc=(gx,gy,z)=>{ const sx=gx-gy, sy=(gx+gy)/2-z;
+    minX=Math.min(minX,sx); maxX=Math.max(maxX,sx); minY=Math.min(minY,sy); maxY=Math.max(maxY,sy); };
+  level.statics.forEach(s=>acc(s[0],s[1],s[2]));
+  for(let k=0;k<4;k++) level.rot.cells.forEach(c=>{ const [dx,dy]=rotCW(c[0],c[1],k); acc(rotor.p[0]+dx,rotor.p[1]+dy,rotor.z); });
+  level.deco.forEach(d=>{ acc(d.x,d.y,d.t); acc(d.x+d.w-1,d.y+d.d-1,d.t-d.h); acc(d.x,d.y+d.d-1,d.t); acc(d.x+d.w-1,d.y,d.t); });
+  acc(level.doorAt[0],level.doorAt[1],level.doorAt[2]+1.4);
+  minX-=1.7; maxX+=1.7; minY-=1.9; maxY+=1.6;
+  u=Math.max(22, Math.min(W*0.94/(maxX-minX), H*0.88/(maxY-minY), 68));
+  ox=W/2 - (minX+maxX)/2*u;
+  oy=H/2 - (minY+maxY)/2*u;
+}
+
+/* =========================== ATMOSPHERE ============================= */
+function initAtmosphere(){
+  particles=[]; stars=[];
+  for(let i=0;i<14;i++) particles.push({x:Math.random()*W, y:Math.random()*H,
+    r:0.8+Math.random()*1.8, s:4+Math.random()*9, ph:Math.random()*6.28});
+  if(level.stars) for(let i=0;i<46;i++) stars.push({x:Math.random(), y:Math.random()*0.62,
+    r:0.5+Math.random()*1.1, ph:Math.random()*6.28});
+}
+
+/* ============================= AUDIO ================================ */
+let AC=null, muted=localStorage.getItem("monument-muted")==="1";
+const muteBtn=document.getElementById("mute");
+function syncMute(){ muteBtn.textContent = muted ? "sound off" : "sound on"; }
+syncMute();
+muteBtn.addEventListener("click",e=>{ e.stopPropagation(); muted=!muted;
+  localStorage.setItem("monument-muted",muted?"1":"0"); syncMute(); });
+function audio(){ if(!AC){ try{ AC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+  if(AC && AC.state==="suspended") AC.resume(); return AC; }
+function tone(f,dur,type,vol,delay=0,glide=null){
+  const a=audio(); if(!a||muted) return;
+  const t0=a.currentTime+delay, o=a.createOscillator(), g=a.createGain();
+  o.type=type; o.frequency.setValueAtTime(f,t0);
+  if(glide) o.frequency.exponentialRampToValueAtTime(glide,t0+dur);
+  g.gain.setValueAtTime(0,t0);
+  g.gain.linearRampToValueAtTime(vol,t0+0.012);
+  g.gain.exponentialRampToValueAtTime(0.0004,t0+dur);
+  o.connect(g).connect(a.destination); o.start(t0); o.stop(t0+dur+.05);
+}
+const sndStep =()=>tone(400+Math.random()*50,.09,"triangle",.02);
+const sndSnap =()=>tone(190,.13,"sine",.055,0,120);
+const sndNope =()=>tone(160,.12,"sine",.03,0,140);
+const sndChime=()=>{[440,554.37,659.25,880].forEach((f,i)=>tone(f,.7,"sine",.038,i*.13));};
+
+/* ============================ DRAWING =============================== */
+function mixc(a,b,t){
+  const pa=[1,3,5].map(i=>parseInt(a.substr(i,2),16));
+  const pb=[1,3,5].map(i=>parseInt(b.substr(i,2),16));
+  return "rgb("+pa.map((v,i)=>Math.round(v+(pb[i]-v)*t)).join(",")+")";
+}
+
+// corners: 4 [gx,gy] in loop order; normals: matching outward [nx,ny]
+function drawBoxQ(corners,normals,topZ,h,pal){
+  const pts=corners.map(c=>P(c[0],c[1],topZ));
+  const pbs=corners.map(c=>P(c[0],c[1],topZ-h));
+  for(let i=0;i<4;i++){
+    const n=normals[i]; if(n[0]+n[1]<1e-4) continue;
+    const j=(i+1)%4, sh=(n[0]-n[1]+1)/2;
+    ctx.fillStyle=mixc(pal.left,pal.right,sh);
+    ctx.beginPath();
+    ctx.moveTo(pts[i].x,pts[i].y); ctx.lineTo(pts[j].x,pts[j].y);
+    ctx.lineTo(pbs[j].x,pbs[j].y); ctx.lineTo(pbs[i].x,pbs[i].y);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.fillStyle=pal.top;
+  ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y);
+  for(let i=1;i<4;i++) ctx.lineTo(pts[i].x,pts[i].y);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle="rgba(60,30,40,.07)"; ctx.lineWidth=1; ctx.stroke();
+}
+
+function drawAlignedBox(x,y,w,d,topZ,h,pal){
+  const cx=x+(w-1)/2, cy=y+(d-1)/2, w2=w/2, d2=d/2;
+  drawBoxQ(
+    [[cx-w2,cy-d2],[cx+w2,cy-d2],[cx+w2,cy+d2],[cx-w2,cy+d2]],
+    [[0,-1],[1,0],[0,1],[-1,0]], topZ,h,pal);
+}
+
+function drawCellBox(gx,gy,angle,topZ,h,pal){
+  const c=Math.cos(angle), s=Math.sin(angle);
+  const R=(dx,dy)=>[dx*c+dy*s, -dx*s+dy*c];
+  const offs=[[-0.5,-0.5],[0.5,-0.5],[0.5,0.5],[-0.5,0.5]].map(o=>R(o[0],o[1]));
+  const nrm=[[0,-1],[1,0],[0,1],[-1,0]].map(n=>R(n[0],n[1]));
+  drawBoxQ(offs.map(o=>[gx+o[0],gy+o[1]]), nrm, topZ,h,pal);
+}
+
+function drawDoor(gx,gy,z){
+  const c=P(gx,gy,z), w=.30*u, hh=1.02*u, t=now/1000;
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(c.x-w,c.y); ctx.lineTo(c.x-w,c.y-hh*.62);
+  ctx.quadraticCurveTo(c.x,c.y-hh*1.18,c.x+w,c.y-hh*.62);
+  ctx.lineTo(c.x+w,c.y); ctx.closePath();
+  ctx.fillStyle=level.door; ctx.fill();
+  const g=.6+.25*Math.sin(t*2.1);
+  ctx.globalAlpha=g;
+  ctx.beginPath();
+  ctx.moveTo(c.x-w*.55,c.y); ctx.lineTo(c.x-w*.55,c.y-hh*.55);
+  ctx.quadraticCurveTo(c.x,c.y-hh*.95,c.x+w*.55,c.y-hh*.55);
+  ctx.lineTo(c.x+w*.55,c.y); ctx.closePath();
+  ctx.fillStyle=level.glow;
+  ctx.shadowColor=level.glow; ctx.shadowBlur=14*g;
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawCharacter(px,py,alpha,bob){
+  ctx.save(); ctx.globalAlpha=alpha;
+  ctx.fillStyle="rgba(50,30,45,.20)";
+  ctx.beginPath(); ctx.ellipse(px,py,.33*u,.15*u,0,0,6.29); ctx.fill();
+  const y=py-bob*u;
+  ctx.fillStyle="#fdfbf4";
+  ctx.beginPath();
+  ctx.moveTo(px-.26*u, y-.02*u);
+  ctx.bezierCurveTo(px-.27*u,y-.44*u, px-.15*u,y-.60*u, px,y-.60*u);
+  ctx.bezierCurveTo(px+.15*u,y-.60*u, px+.27*u,y-.44*u, px+.26*u,y-.02*u);
+  ctx.quadraticCurveTo(px,y+.06*u, px-.26*u,y-.02*u);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle="rgba(150,110,110,.22)";                       // right shade
+  ctx.beginPath();
+  ctx.moveTo(px, y-.60*u);
+  ctx.bezierCurveTo(px+.15*u,y-.60*u, px+.27*u,y-.44*u, px+.26*u,y-.02*u);
+  ctx.quadraticCurveTo(px+.13*u,y+.02*u, px,y+.01*u);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle="#fdfbf4";
+  ctx.beginPath(); ctx.arc(px,y-.72*u,.125*u,0,6.29); ctx.fill();
+  ctx.beginPath();                                             // hat
+  ctx.moveTo(px-.115*u,y-.78*u); ctx.lineTo(px+.115*u,y-.78*u); ctx.lineTo(px,y-1.06*u);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle="rgba(150,110,110,.20)";
+  ctx.beginPath(); ctx.moveTo(px,y-.78*u); ctx.lineTo(px+.115*u,y-.78*u); ctx.lineTo(px,y-1.06*u);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+function drawHintArc(){
+  if(rotatedThisLevel||mode!=="play") return;
+  const c=P(rotor.p[0],rotor.p[1],rotor.z), r=1.55*u, t=now/1000;
+  ctx.save();
+  ctx.globalAlpha=.35+.25*Math.sin(t*2.2);
+  ctx.strokeStyle="#fff"; ctx.lineWidth=2; ctx.setLineDash([5,7]);
+  ctx.beginPath(); ctx.ellipse(c.x,c.y-.2*u,r,r*.5,0,-.4,2.4); ctx.stroke();
+  ctx.setLineDash([]);
+  const ax=c.x+r*Math.cos(2.4), ay=c.y-.2*u+r*.5*Math.sin(2.4);
+  ctx.fillStyle="#fff";
+  ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(ax+9,ay-7); ctx.lineTo(ax+3,ay-13); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+/* =========================== SCENE FRAME ============================ */
+function charScreenPos(){
+  // walking: interpolate between previous node and path[0]
+  if(ch.path.length){
+    const a=nodeVis(ch.node), b=nodeVis(ch.path[0]);
+    const pa=P(a[0],a[1],a[2]), pb=P(b[0],b[1],b[2]);
+    const t=ch.t, e=t*t*(3-2*t);
+    return {x:pa.x+(pb.x-pa.x)*e, y:pa.y+(pb.y-pa.y)*e, bob:Math.sin(t*Math.PI)*.07,
+            key:sortKey.apply(null, t<0.5?a:b)+0.31};
+  }
+  const p=nodeVis(ch.node), pp=P(p[0],p[1],p[2]);
+  return {x:pp.x,y:pp.y,bob:0,key:sortKey(p[0],p[1],p[2])+0.31};
+}
+
+function frame(t){
+  now=t;
+  // -- sky
+  const sky=ctx.createLinearGradient(0,0,0,H);
+  sky.addColorStop(0,level?level.sky[0]:"#f7dcc8");
+  sky.addColorStop(1,level?level.sky[1]:"#e08d7e");
+  ctx.fillStyle=sky; ctx.fillRect(0,0,W,H);
+  if(level){
+    if(level.stars){ ctx.fillStyle="#fff";
+      for(const s of stars){ ctx.globalAlpha=.3+.5*Math.abs(Math.sin(t/1400+s.ph));
+        ctx.beginPath(); ctx.arc(s.x*W,s.y*H,s.r,0,6.29); ctx.fill(); }
+      ctx.globalAlpha=1;
+    }
+    if(level.sun){ const s=level.sun, r=s.r*Math.min(W,H);
+      const g=ctx.createRadialGradient(s.x*W,s.y*H,r*.2,s.x*W,s.y*H,r*2.4);
+      g.addColorStop(0,s.c); g.addColorStop(1,"rgba(255,250,230,0)");
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(s.x*W,s.y*H,r*2.4,0,6.29); ctx.fill();
+      ctx.fillStyle=s.c; ctx.beginPath(); ctx.arc(s.x*W,s.y*H,r,0,6.29); ctx.fill();
+    }
+    if(level.moon){ const m=level.moon, r=m.r*Math.min(W,H);
+      ctx.fillStyle="rgba(255,250,235,.92)";
+      ctx.beginPath(); ctx.arc(m.x*W,m.y*H,r,0,6.29); ctx.fill();
+      ctx.fillStyle=level.sky[0];
+      ctx.beginPath(); ctx.arc(m.x*W+r*.42,m.y*H-r*.18,r*.86,0,6.29); ctx.fill();
+    }
+    // -- particles
+    for(const p of particles){
+      p.y-=p.s*0.016; p.x+=Math.sin(t/1700+p.ph)*.18;
+      if(p.y<-6){p.y=H+6;p.x=Math.random()*W;}
+      ctx.fillStyle="rgba("+level.particle+",.4)";
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,6.29); ctx.fill();
+    }
+    drawScene(t);
+    drawHintArc();
+    // -- vignette
+    const v=ctx.createRadialGradient(W/2,H/2,Math.min(W,H)*.42,W/2,H/2,Math.max(W,H)*.75);
+    v.addColorStop(0,"rgba(0,0,0,0)"); v.addColorStop(1,"rgba(30,10,25,.16)");
+    ctx.fillStyle=v; ctx.fillRect(0,0,W,H);
+  }
+  step(t);
+  requestAnimationFrame(frame);
+}
+
+function drawScene(t){
+  const items=[];
+  for(const d of level.deco)
+    items.push({key:sortKey(d.x+(d.w-1)/2, d.y+(d.d-1)/2, d.t)-0.02,
+                draw:()=>drawAlignedBox(d.x,d.y,d.w,d.d,d.t,d.h,level.decoBlock)});
+  for(const n of nodes){
+    const p=nodeVis(n), isRot=n.kind==="rot";
+    const isDoor=(n.kind==="static" && n.x===level.doorAt[0] && n.y===level.doorAt[1] && n.z===level.doorAt[2]);
+    items.push({key:sortKey(p[0],p[1],p[2]), draw:()=>{
+      if(isRot) drawCellBox(p[0],p[1],rotor.angle,rotor.z,TH,level.rotBlock);
+      else drawAlignedBox(n.x,n.y,1,1,n.z,TH,level.block);
+      if(isDoor) drawDoor(n.x,n.y,n.z);
+    }});
+  }
+  if(ch && ch.alpha>0.01){
+    const c=charScreenPos();
+    items.push({key:c.key, draw:()=>drawCharacter(c.x,c.y,ch.alpha,c.bob)});
+  }
+  items.sort((a,b)=>a.key-b.key);
+  for(const it of items) it.draw();
+  // -- no-path pulses
+  pulses=pulses.filter(p=>t-p.t0<600);
+  for(const p of pulses){
+    const k=(t-p.t0)/600, c=P(p.g[0],p.g[1],p.g[2]);
+    ctx.strokeStyle="rgba(255,255,255,"+(0.6*(1-k))+")"; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.ellipse(c.x,c.y,(0.5+k*0.7)*u,(0.25+k*0.35)*u,0,0,6.29); ctx.stroke();
+  }
+}
+
+/* =========================== ANIMATION ============================== */
+let lastT=0;
+function step(t){
+  const dt=Math.min(50,t-lastT); lastT=t;
+  // walking
+  if(mode==="play" && ch.path.length){
+    ch.t+=dt/165;
+    if(ch.t>=1){
+      ch.node=ch.path.shift(); ch.t=0; sndStep();
+      if(!ch.path.length){
+        const p=nodePos(ch.node);
+        if(p[0]===level.doorAt[0]&&p[1]===level.doorAt[1]&&p[2]===level.doorAt[2]) enterDoor();
+      }
+    }
+  }
+  // entering door
+  if(mode==="entering"){
+    ch.alpha=Math.max(0,ch.alpha-dt/650);
+    if(ch.alpha<=0 && !ch.entered){ ch.entered=true; levelComplete(); }
+  }
+  // rotor snap animation
+  if(rotor && rotor.anim){
+    const a=rotor.anim, k=Math.min(1,(t-a.t0)/a.dur), e=1-Math.pow(1-k,3);
+    rotor.angle=a.from+(a.to-a.from)*e;
+    if(k>=1){ rotor.anim=null; commitRotation(a.to); }
+  }
+}
+
+function commitRotation(angle){
+  const k=Math.round(angle/(Math.PI/2));
+  const newRot=((k%4)+4)%4;
+  rotor.rot=newRot;
+  rotor.angle=newRot*(Math.PI/2);
+  buildEdges();
+}
+
+function enterDoor(){ mode="entering"; sndChime(); }
+
+/* ============================== FLOW ================================ */
+const cardEl=document.getElementById("card");
+let cardTimer=null, cardTapAction=null;
+function showCard(numeral,name,sub,autoHide){
+  document.getElementById("cardNumeral").textContent=numeral||"";
+  document.getElementById("cardName").textContent=name;
+  document.getElementById("cardSub").textContent=sub||"";
+  cardEl.classList.remove("gone");
+  clearTimeout(cardTimer);
+  if(autoHide) cardTimer=setTimeout(()=>cardEl.classList.add("gone"),2600);
+}
+function levelComplete(){
+  localStorage.setItem(saveKey,String(Math.min(levelIdx+1,LEVELS.length-1)));
+  if(levelIdx+1<LEVELS.length){
+    mode="card";
+    showCard(level.numeral,"chapter complete","tap to continue");
+    cardTapAction=()=>loadLevel(levelIdx+1);
+  }else{
+    mode="end";
+    localStorage.setItem(saveKey,"0");
+    showCard("","the end","thank you for wandering — tap to begin again · inspired by ustwo’s Monument Valley");
+    cardTapAction=()=>loadLevel(0);
+  }
+}
+
+/* ============================== INPUT =============================== */
+const titleEl=document.getElementById("title");
+titleEl.addEventListener("pointerdown",()=>{
+  audio(); titleEl.classList.add("gone");
+  loadLevel(levelIdx);
+});
+
+let pdown=null;
+cv.addEventListener("pointerdown",e=>{
+  if(mode==="card"||mode==="end"){
+    if(cardTapAction){ const a=cardTapAction; cardTapAction=null; cardEl.classList.add("gone"); a(); }
+    return;
+  }
+  if(mode!=="play") return;
+  const piv=P(rotor.p[0],rotor.p[1],rotor.z);
+  const maxOff=Math.max.apply(null, level.rot.cells.map(c=>Math.hypot(c[0],c[1])));
+  const grabR=(maxOff*1.1+1.15)*u;
+  const nearRot=Math.hypot(e.clientX-piv.x, e.clientY-piv.y-(-.25*u))<grabR;
+  pdown={x:e.clientX,y:e.clientY, rotating:false,
+         canRotate: nearRot && !ch.path.length && !rotor.anim,
+         a0:Math.atan2(e.clientY-piv.y, e.clientX-piv.x), ang0:rotor.angle};
+  cv.setPointerCapture(e.pointerId);
+});
+cv.addEventListener("pointermove",e=>{
+  if(!pdown) return;
+  if(!pdown.rotating && pdown.canRotate &&
+     Math.hypot(e.clientX-pdown.x,e.clientY-pdown.y)>9){
+    pdown.rotating=true; rotor.drag=true;
+  }
+  if(pdown.rotating){
+    const piv=P(rotor.p[0],rotor.p[1],rotor.z);
+    let d=Math.atan2(e.clientY-piv.y,e.clientX-piv.x)-pdown.a0;
+    while(d>Math.PI)d-=2*Math.PI; while(d<-Math.PI)d+=2*Math.PI;
+    rotor.angle=pdown.ang0+d;
+  }
+});
+function endPointer(e){
+  if(!pdown) return;
+  if(pdown.rotating){
+    rotor.drag=false;
+    const q=Math.PI/2, target=Math.round(rotor.angle/q)*q;
+    if(Math.round(target/q)!==Math.round(pdown.ang0/q)){ rotatedThisLevel=true; sndSnap(); }
+    rotor.anim={from:rotor.angle,to:target,t0:now,dur:240};
+  }else if(mode==="play" && !rotor.anim && !ch.path.length){
+    // tile click → walk
+    let best=null;
+    for(const n of nodes){
+      const g=nodePos(n), c=P(g[0],g[1],g[2]);
+      const dx=Math.abs(e.clientX-c.x)/u, dy=Math.abs(e.clientY-c.y)/(u/2);
+      if(dx+dy<=1.05){
+        const k=sortKey(g[0],g[1],g[2]);
+        if(!best||k>best.k) best={n,k,g};
+      }
+    }
+    if(best && best.n!==ch.node){
+      const path=bfs(ch.node,best.n);
+      if(path){ ch.path=path; ch.t=0; }
+      else { pulses.push({g:best.g,t0:now}); sndNope(); }
+    }
+  }
+  pdown=null;
+}
+cv.addEventListener("pointerup",endPointer);
+cv.addEventListener("pointercancel",()=>{ if(pdown&&pdown.rotating){
+  const q=Math.PI/2; rotor.anim={from:rotor.angle,to:Math.round(rotor.angle/q)*q,t0:now,dur:200}; }
+  pdown=null; });
+
+/* ============================== START =============================== */
+resize();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
