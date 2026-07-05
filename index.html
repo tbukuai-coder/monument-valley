@@ -187,6 +187,73 @@ const LEVELS = [
       {x:2,y:-2,w:1,d:1,t:1.2,h:0.9},
       {x:2,y:4, w:1,d:1,t:0.6,h:1.0}
     ]
+  },
+  {
+    numeral:"VII", name:"The Strait",
+    hint:"The child, grown, takes to the sea. Drag the boat across the water.",
+    sky:["#cfe7ee","#7999b8"], sun:{x:.22,y:.16,r:.055,c:"rgba(255,252,240,.95)"},
+    sea:{z:0}, water:"46,104,138",
+    block:{top:"#eeddba",left:"#cfb488",right:"#a68a5e"},
+    rotBlock:{top:"#f4c9b0",left:"#e09b7d",right:"#ba7057"},
+    decoBlock:{top:"#e0cda6",left:"#bda478",right:"#937c52"},
+    boat:{top:"#e0aa72",left:"#bd8148",right:"#8f5c30"},
+    door:"#28536b", glow:"#ffe9c9", particle:"235,248,255",
+    statics:[[0,3,1],[1,3,1],[6,3,1],[7,3,1],[7,2,1],[7,1,1],[7,-3,1],[7,-4,1]],
+    rot:{p:[7,-1], z:1, cells:[[-1,0],[0,0],[1,0]]},
+    ferry:{a:[2,3], b:[5,3], z:1},
+    start:[0,3,1], doorAt:[7,-4,1],
+    deco:[
+      {x:7,y:-4,w:1,d:1,t:0.45,h:3.2},
+      {x:0,y:3, w:1,d:1,t:0.45,h:1.6},
+      {x:4,y:6, w:1,d:1,t:0.3,h:0.7},
+      {x:10,y:1,w:1,d:1,t:0.3,h:0.7}
+    ]
+  },
+  {
+    numeral:"VIII", name:"The Tide",
+    hint:"The sea remembers no road. Tap the tide dial — what floats will rise with it.",
+    sky:["#c8dfd6","#5d8a88"], sun:{x:.76,y:.14,r:.045,c:"rgba(255,250,230,.9)"},
+    sea:{z:0}, water:"40,96,104",
+    block:{top:"#d4dcc9",left:"#a3af92",right:"#77836a"},
+    decoBlock:{top:"#c4ccb8",left:"#939e82",right:"#68735b"},
+    boat:{top:"#d9a06b",left:"#b57c44",right:"#88592c"},
+    door:"#1f4a4a", glow:"#ffedb8", particle:"228,244,238",
+    statics:[[0,4,1],[0,3,1],[0,2,1],[0,1,1],
+             [0,-1,2],[0,-2,2],[1,-2,2],[2,-2,2],
+             [4,-2,1],[5,-2,1]],
+    floats:[[0,0],[3,-2]],
+    tide:{low:0, high:2, dial:[-3,2,1]},
+    start:[0,4,1], doorAt:[5,-2,1],
+    deco:[
+      {x:0,y:4, w:1,d:1,t:0.45,h:1.2},
+      {x:0,y:-1,w:1,d:1,t:1.45,h:2.2},
+      {x:5,y:-2,w:1,d:1,t:0.45,h:1.3},
+      {x:-2,y:-2,w:1,d:1,t:0.3,h:0.7}
+    ]
+  },
+  {
+    numeral:"IX", name:"The Light",
+    hint:"The old light waits on high. Carry it to the dark lighthouse, and bring the valley home.",
+    sky:["#f6c8a0","#5c4a78"], sun:{x:.5,y:.22,r:.075,c:"rgba(255,232,190,.95)"},
+    stars:true,
+    sea:{z:0}, water:"57,89,126",
+    block:{top:"#e8c4b0",left:"#bd8d80",right:"#8d6058"},
+    rotBlock:{top:"#f0cfa6",left:"#d8a76f",right:"#b07c4c"},
+    decoBlock:{top:"#dbb4a0",left:"#af7f72",right:"#82554d"},
+    boat:{top:"#e0aa72",left:"#bd8148",right:"#8f5c30"},
+    door:"#2a1f4d", glow:"#ffe08a", particle:"255,228,200",
+    statics:[[0,3,1],[1,3,1],[2,3,1],[3,3,1],[7,3,3],[8,3,3],[1,8,1],[0,8,1]],
+    rot:{p:[3,1], z:1, cells:[[0,-1],[0,0],[0,1]]},
+    ferry:{a:[1,4], b:[1,7], z:1},
+    orbAt:[8,3,3],
+    start:[0,3,1], doorAt:[0,8,1],
+    deco:[
+      {x:0,y:8,w:1,d:1,t:0.45,h:3.8},
+      {x:8,y:3,w:1,d:1,t:2.45,h:3.2},
+      {x:0,y:3,w:1,d:1,t:0.45,h:1.5},
+      {x:5,y:9,w:1,d:1,t:0.3,h:0.7},
+      {x:-2,y:0,w:1,d:1,t:0.3,h:0.7}
+    ]
   }
 ];
 /* LEVELS-END */
@@ -209,6 +276,9 @@ let nodes=[], edges=new Map(); // id -> Set(id)
 let rotor=null;               // {p,z,cells,rot,angle, anim}
 let chs=[], sel=0;            // characters + selected index
 let doorTiles=[];             // one door per character
+let ferryS=null, tideS=null;  // boat + water-level state
+let orbHeld=null;             // character carrying the light, if any
+let usedFerry=false, usedTide=false;
 let u=48, ox=0, oy=0;         // scale + screen offset
 let mode="title";             // title | play | entering | card | end
 let pulses=[], particles=[], stars=[];
@@ -223,25 +293,46 @@ function rotCW(dx,dy,k){ for(let i=0;i<((k%4)+4)%4;i++){ const t=dx; dx=dy; dy=-
 function P(gx,gy,z){ return { x: ox + (gx-gy)*u, y: oy + ((gx+gy)/2 - z)*u }; }
 function sortKey(gx,gy,z){ return (gx+gy) + z*0.62; }
 
+function waterZC(){ // committed water level
+  if(level.tide) return tideS.hi ? level.tide.high : level.tide.low;
+  return level.sea ? level.sea.z : -1e9;
+}
+function submerged(n){ return n.kind==="static" && n.z < waterZC()-0.01; }
+
 function nodePos(n){ // committed integer grid position
   if(n.kind==="rot"){ const [dx,dy]=rotCW(n.bx,n.by,rotor.rot); return [rotor.p[0]+dx, rotor.p[1]+dy, rotor.z]; }
+  if(n.kind==="ferry"){ const f=level.ferry, t=ferryS.t;
+    return [f.a[0]+(f.b[0]-f.a[0])*t, f.a[1]+(f.b[1]-f.a[1])*t, f.z]; }
+  if(n.kind==="float") return [n.x, n.y, waterZC()];
   return [n.x,n.y,n.z];
 }
-function nodeVis(n){ // visual (possibly mid-rotation) grid position
+function nodeVis(n){ // visual (possibly mid-animation) grid position
   if(n.kind==="rot"){
     const a=rotor.angle, c=Math.cos(a), s=Math.sin(a);
     return [rotor.p[0] + n.bx*c + n.by*s, rotor.p[1] - n.bx*s + n.by*c, rotor.z];
   }
+  if(n.kind==="ferry"){ const f=level.ferry, t=ferryS.tf;
+    return [f.a[0]+(f.b[0]-f.a[0])*t, f.a[1]+(f.b[1]-f.a[1])*t, f.z]; }
+  if(n.kind==="float") return [n.x, n.y, tideS.w];
   return [n.x,n.y,n.z];
 }
 
 /* ======================= LEVEL LOAD / GRAPH ========================= */
 function loadLevel(i){
   levelIdx=i; level=LEVELS[i];
-  nodes=[]; pulses=[]; rotatedThisLevel=false;
+  nodes=[]; pulses=[]; rotatedThisLevel=false; usedFerry=false; usedTide=false; orbHeld=null;
   level.statics.forEach((s,j)=>nodes.push({id:"s"+j, kind:"static", x:s[0],y:s[1],z:s[2]}));
-  rotor={p:level.rot.p.slice(), z:level.rot.z, rot:0, angle:0, anim:null, drag:null};
-  level.rot.cells.forEach((c,j)=>nodes.push({id:"r"+j, kind:"rot", bx:c[0], by:c[1]}));
+  rotor=null;
+  if(level.rot){
+    rotor={p:level.rot.p.slice(), z:level.rot.z, rot:0, angle:0, anim:null, drag:null};
+    level.rot.cells.forEach((c,j)=>nodes.push({id:"r"+j, kind:"rot", bx:c[0], by:c[1]}));
+  }
+  ferryS=null;
+  if(level.ferry){ ferryS={t:0, tf:0, anim:null}; nodes.push({id:"f0", kind:"ferry"}); }
+  tideS={hi:false, w: level.tide?level.tide.low:(level.sea?level.sea.z:-1e9), anim:null};
+  if(level.floats) level.floats.forEach((f,j)=>nodes.push({id:"w"+j, kind:"float", x:f[0], y:f[1]}));
+  level._gcx=level.statics.reduce((a,s)=>a+s[0],0)/level.statics.length;
+  level._gcy=level.statics.reduce((a,s)=>a+s[1],0)/level.statics.length;
   buildEdges();
   const defs=level.chars||[{start:level.start, doorAt:level.doorAt}];
   chs=defs.map(d=>({
@@ -260,6 +351,7 @@ function loadLevel(i){
 function buildEdges(){
   edges=new Map(); nodes.forEach(n=>edges.set(n.id,new Set()));
   for(let i=0;i<nodes.length;i++) for(let j=i+1;j<nodes.length;j++){
+    if(submerged(nodes[i])||submerged(nodes[j])) continue;
     const a=nodePos(nodes[i]), b=nodePos(nodes[j]);
     const dsx=(a[0]-a[1])-(b[0]-b[1]);
     const dsy=((a[0]+a[1])/2-a[2])-((b[0]+b[1])/2-b[2]);
@@ -292,7 +384,11 @@ function fitLevel(){
   const acc=(gx,gy,z)=>{ const sx=gx-gy, sy=(gx+gy)/2-z;
     minX=Math.min(minX,sx); maxX=Math.max(maxX,sx); minY=Math.min(minY,sy); maxY=Math.max(maxY,sy); };
   level.statics.forEach(s=>acc(s[0],s[1],s[2]));
-  for(let k=0;k<4;k++) level.rot.cells.forEach(c=>{ const [dx,dy]=rotCW(c[0],c[1],k); acc(rotor.p[0]+dx,rotor.p[1]+dy,rotor.z); });
+  if(level.rot) for(let k=0;k<4;k++) level.rot.cells.forEach(c=>{ const [dx,dy]=rotCW(c[0],c[1],k); acc(rotor.p[0]+dx,rotor.p[1]+dy,rotor.z); });
+  if(level.ferry){ acc(level.ferry.a[0],level.ferry.a[1],level.ferry.z); acc(level.ferry.b[0],level.ferry.b[1],level.ferry.z); }
+  if(level.floats) level.floats.forEach(f=>{ acc(f[0],f[1],level.tide?level.tide.low:0); acc(f[0],f[1],level.tide?level.tide.high:0); });
+  if(level.tide) acc(level.tide.dial[0],level.tide.dial[1],level.tide.dial[2]);
+  if(level.orbAt) acc(level.orbAt[0],level.orbAt[1],level.orbAt[2]+1.2);
   level.deco.forEach(d=>{ acc(d.x,d.y,d.t); acc(d.x+d.w-1,d.y+d.d-1,d.t-d.h); acc(d.x,d.y+d.d-1,d.t); acc(d.x+d.w-1,d.y,d.t); });
   for(const d of (level.chars||[{doorAt:level.doorAt}])) acc(d.doorAt[0],d.doorAt[1],d.doorAt[2]+1.4);
   minX-=1.7; maxX+=1.7; minY-=1.9; maxY+=1.6;
@@ -334,6 +430,9 @@ const sndSnap =()=>tone(190,.13,"sine",.055,0,120);
 const sndNope =()=>tone(160,.12,"sine",.03,0,140);
 const sndChime=()=>{[440,554.37,659.25,880].forEach((f,i)=>tone(f,.7,"sine",.038,i*.13));};
 const sndMini =()=>{[554.37,880].forEach((f,i)=>tone(f,.5,"sine",.03,i*.11));};
+const sndSail =()=>tone(240,.22,"triangle",.03,0,180);
+const sndTide =()=>tone(85,.9,"sine",.055,0,55);
+const sndOrb  =()=>{[1318.5,1760].forEach((f,i)=>tone(f,.4,"sine",.03,i*.09));};
 
 /* ============================ DRAWING =============================== */
 function mixc(a,b,t){
@@ -377,15 +476,92 @@ function drawCellBox(gx,gy,angle,topZ,h,pal){
   drawBoxQ(offs.map(o=>[gx+o[0],gy+o[1]]), nrm, topZ,h,pal);
 }
 
+function drawWater(wz){
+  const S=34, cx=level._gcx, cy=level._gcy;
+  const pts=[[cx-S,cy-S],[cx+S,cy-S],[cx+S,cy+S],[cx-S,cy+S]].map(c=>P(c[0],c[1],wz));
+  ctx.fillStyle="rgba("+level.water+",0.55)";
+  ctx.beginPath(); pts.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle="rgba(255,255,255,.09)"; ctx.lineWidth=1.5;
+  for(let i=0;i<4;i++){
+    const ph=now/2600+i*1.7;
+    const c=P(cx+Math.sin(ph)*(3+i), cy+Math.cos(ph*0.8)*(2+i)+i-1.5, wz);
+    ctx.beginPath(); ctx.ellipse(c.x,c.y,8+i*5,3+i*1.5,0,0,6.29); ctx.stroke();
+  }
+}
+
+function drawBoat(gx,gy,z,withSail){
+  drawCellBox(gx,gy,0,z,TH,level.boat);
+  const c=P(gx,gy,z);
+  if(withSail){
+    ctx.strokeStyle="#6e4a2c"; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(c.x,c.y-2); ctx.lineTo(c.x,c.y-1.15*u); ctx.stroke();
+    ctx.fillStyle="rgba(253,250,240,.95)";
+    ctx.beginPath();
+    ctx.moveTo(c.x+2,c.y-1.1*u);
+    ctx.quadraticCurveTo(c.x+.55*u,c.y-.7*u,c.x+2,c.y-.3*u);
+    ctx.closePath(); ctx.fill();
+  }
+}
+
+function drawDial(){
+  const d=level.tide.dial, c=P(d[0],d[1],d[2]);
+  const pulse=usedTide?0:.12*Math.sin(now/300);
+  ctx.save();
+  ctx.globalAlpha=.9;
+  ctx.fillStyle="rgba(252,250,244,.92)";
+  ctx.shadowColor="rgba(255,255,255,.7)"; ctx.shadowBlur=usedTide?4:10;
+  ctx.beginPath(); ctx.arc(c.x,c.y,.42*u*(1+pulse),0,6.29); ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.strokeStyle="rgba("+level.water+",.9)"; ctx.lineWidth=2;
+  for(const dy of [-0.08,0.1]){
+    ctx.beginPath();
+    for(let k=0;k<=12;k++){
+      const x=c.x-.26*u+k*.052*u, y=c.y+dy*u+Math.sin(k*1.05)*.05*u;
+      k?ctx.lineTo(x,y):ctx.moveTo(x,y);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawOrb(px,py,sc){
+  const b=Math.sin(now/450)*.06*u;
+  ctx.save();
+  ctx.fillStyle="#fff2c0";
+  ctx.shadowColor="#ffe08a"; ctx.shadowBlur=16*(sc||1);
+  ctx.beginPath(); ctx.arc(px,py+b,.14*u*(sc||1),0,6.29); ctx.fill();
+  ctx.restore();
+}
+
+function drawFerryHint(){
+  if(!level.ferry||usedFerry||mode!=="play") return;
+  const f=level.ferry, n=nodes.find(x=>x.kind==="ferry"), p=nodeVis(n);
+  const A=P(f.a[0],f.a[1],f.z), B=P(f.b[0],f.b[1],f.z), c=P(p[0],p[1],p[2]);
+  const L=Math.hypot(B.x-A.x,B.y-A.y), vx=(B.x-A.x)/L, vy=(B.y-A.y)/L;
+  ctx.save();
+  ctx.globalAlpha=.4+.25*Math.sin(now/300);
+  ctx.fillStyle="#fff";
+  for(const s of [1,-1]){
+    const ax=c.x+vx*s*1.15*u, ay=c.y-.55*u+vy*s*1.15*u;
+    ctx.beginPath();
+    ctx.moveTo(ax+vx*s*10,ay+vy*s*10);
+    ctx.lineTo(ax-vy*s*7,ay+vx*s*7); ctx.lineTo(ax+vy*s*7,ay-vx*s*7);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+}
+
 function drawDoor(gx,gy,z){
   const c=P(gx,gy,z), w=.30*u, hh=1.02*u, t=now/1000;
+  const locked=level.orbAt && !orbHeld;
   ctx.save();
   ctx.beginPath();
   ctx.moveTo(c.x-w,c.y); ctx.lineTo(c.x-w,c.y-hh*.62);
   ctx.quadraticCurveTo(c.x,c.y-hh*1.18,c.x+w,c.y-hh*.62);
   ctx.lineTo(c.x+w,c.y); ctx.closePath();
   ctx.fillStyle=level.door; ctx.fill();
-  const g=.6+.25*Math.sin(t*2.1);
+  const g=locked?.10:.6+.25*Math.sin(t*2.1);
   ctx.globalAlpha=g;
   ctx.beginPath();
   ctx.moveTo(c.x-w*.55,c.y); ctx.lineTo(c.x-w*.55,c.y-hh*.55);
@@ -436,7 +612,7 @@ function drawSelRing(px,py){
 }
 
 function drawHintArc(){
-  if(rotatedThisLevel||mode!=="play") return;
+  if(!rotor||rotatedThisLevel||mode!=="play") return;
   const c=P(rotor.p[0],rotor.p[1],rotor.z), r=1.55*u, t=now/1000;
   ctx.save();
   ctx.globalAlpha=.35+.25*Math.sin(t*2.2);
@@ -510,29 +686,46 @@ function frame(t){
 function drawScene(t){
   const items=[];
   for(const d of level.deco)
-    items.push({key:sortKey(d.x+(d.w-1)/2, d.y+(d.d-1)/2, d.t)-0.02,
+    items.push({key:sortKey(d.x+(d.w-1)/2, d.y+(d.d-1)/2, d.t)-0.02, tz:d.t,
                 draw:()=>drawAlignedBox(d.x,d.y,d.w,d.d,d.t,d.h,level.decoBlock)});
   for(const n of nodes){
-    const p=nodeVis(n), isRot=n.kind==="rot";
+    const p=nodeVis(n);
     const isDoor=(n.kind==="static" && doorTiles.some(d=>n.x===d[0]&&n.y===d[1]&&n.z===d[2]));
-    items.push({key:sortKey(p[0],p[1],p[2]), draw:()=>{
-      if(isRot) drawCellBox(p[0],p[1],rotor.angle,rotor.z,TH,level.rotBlock);
+    items.push({key:sortKey(p[0],p[1],p[2]), tz:p[2], draw:()=>{
+      if(n.kind==="rot") drawCellBox(p[0],p[1],rotor.angle,rotor.z,TH,level.rotBlock);
+      else if(n.kind==="ferry") drawBoat(p[0],p[1],p[2],true);
+      else if(n.kind==="float") drawBoat(p[0],p[1],p[2],false);
       else drawAlignedBox(n.x,n.y,1,1,n.z,TH,level.block);
       if(isDoor) drawDoor(n.x,n.y,n.z);
     }});
   }
+  if(level.orbAt && !orbHeld){
+    const o=level.orbAt, c=P(o[0],o[1],o[2]);
+    items.push({key:sortKey(o[0],o[1],o[2])+0.2, tz:o[2],
+                draw:()=>drawOrb(c.x,c.y-.55*u,1)});
+  }
   const nActive=chs.filter(activeChar).length;
   for(const c of chs){
     if(c.alpha<=0.01) continue;
-    const s=charScreenPos(c);
+    const s=charScreenPos(c), ctz=nodeVis(c.node)[2];
     const isSel=(nActive>1 && chs[sel]===c && activeChar(c));
-    items.push({key:s.key, draw:()=>{
+    items.push({key:s.key, tz:ctz, draw:()=>{
       if(isSel) drawSelRing(s.x,s.y);
       drawCharacter(s.x,s.y,c.alpha,s.bob,c.small?0.72:1);
+      if(orbHeld===c){ ctx.globalAlpha=c.alpha; drawOrb(s.x+.24*u,s.y-(s.bob*u)-1.02*u,.55); ctx.globalAlpha=1; }
     }});
   }
   items.sort((a,b)=>a.key-b.key);
-  for(const it of items) it.draw();
+  const hasWater=!!(level.sea||level.tide), wz=hasWater?tideS.w:-1e9;
+  if(hasWater){
+    for(const it of items) if(it.tz<wz-0.01) it.draw();
+    drawWater(wz);
+    for(const it of items) if(it.tz>=wz-0.01) it.draw();
+    if(level.tide) drawDial();
+    drawFerryHint();
+  }else{
+    for(const it of items) it.draw();
+  }
   // -- no-path pulses
   pulses=pulses.filter(p=>t-p.t0<600);
   for(const p of pulses){
@@ -553,11 +746,16 @@ function step(t){
       if(c.t>=1){
         c.node=c.path.shift(); c.t=0; sndStep();
         if(!c.path.length){
-          const p=nodePos(c.node);
-          if(p[0]===c.doorAt[0]&&p[1]===c.doorAt[1]&&p[2]===c.doorAt[2]){
-            c.entering=true;
-            if(chs.every(x=>!activeChar(x))) sndChime(); else sndMini();
-            if(chs[sel]===c){ const nxt=chs.findIndex(activeChar); if(nxt>=0) sel=nxt; }
+          const p=nodePos(c.node), o=level.orbAt;
+          if(o && !orbHeld && p[0]===o[0]&&p[1]===o[1]&&p[2]===o[2]){
+            orbHeld=c; sndOrb();
+          }else if(p[0]===c.doorAt[0]&&p[1]===c.doorAt[1]&&p[2]===c.doorAt[2]){
+            if(level.orbAt && orbHeld!==c){ pulses.push({g:p,t0:now}); sndNope(); }
+            else{
+              c.entering=true;
+              if(chs.every(x=>!activeChar(x))) sndChime(); else sndMini();
+              if(chs[sel]===c){ const nxt=chs.findIndex(activeChar); if(nxt>=0) sel=nxt; }
+            }
           }
         }
       }
@@ -573,6 +771,22 @@ function step(t){
     rotor.angle=a.from+(a.to-a.from)*e;
     if(k>=1){ rotor.anim=null; commitRotation(a.to); }
   }
+  // ferry glide animation
+  if(ferryS && ferryS.anim){
+    const a=ferryS.anim, k=Math.min(1,(t-a.t0)/a.dur), e=1-Math.pow(1-k,3);
+    ferryS.tf=a.from+(a.to-a.from)*e;
+    if(k>=1){ ferryS.anim=null; ferryS.t=a.to; ferryS.tf=a.to; buildEdges(); }
+  }
+  // tide animation
+  if(level && level.tide && tideS.anim){
+    const a=tideS.anim, k=Math.min(1,(t-a.t0)/a.dur), e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+    tideS.w=a.from+(a.to-a.from)*e;
+    if(k>=1){ tideS.anim=null; tideS.w=a.to; tideS.hi=(a.to===level.tide.high); buildEdges(); }
+  }
+}
+
+function busy(){
+  return !!((rotor&&rotor.anim)||(ferryS&&ferryS.anim)||(tideS&&tideS.anim));
 }
 
 function commitRotation(angle){
@@ -623,20 +837,29 @@ cv.addEventListener("pointerdown",e=>{
     return;
   }
   if(mode!=="play") return;
-  const piv=P(rotor.p[0],rotor.p[1],rotor.z);
-  const maxOff=Math.max.apply(null, level.rot.cells.map(c=>Math.hypot(c[0],c[1])));
-  const grabR=(maxOff*1.1+1.15)*u;
-  const nearRot=Math.hypot(e.clientX-piv.x, e.clientY-piv.y-(-.25*u))<grabR;
-  pdown={x:e.clientX,y:e.clientY, rotating:false,
-         canRotate: nearRot && !chs.some(c=>c.path.length) && !rotor.anim,
-         a0:Math.atan2(e.clientY-piv.y, e.clientX-piv.x), ang0:rotor.angle};
+  const idle=!chs.some(c=>c.path.length) && !busy();
+  let canRotate=false, a0=0, ang0=0;
+  if(rotor && idle){
+    const piv=P(rotor.p[0],rotor.p[1],rotor.z);
+    const maxOff=Math.max.apply(null, level.rot.cells.map(c=>Math.hypot(c[0],c[1])));
+    canRotate=Math.hypot(e.clientX-piv.x, e.clientY-piv.y+.25*u)<(maxOff*1.1+1.15)*u;
+    a0=Math.atan2(e.clientY-piv.y, e.clientX-piv.x); ang0=rotor.angle;
+  }
+  let canFerry=false, f0=0;
+  if(ferryS && idle){
+    const fn=nodes.find(n=>n.kind==="ferry"), p=nodeVis(fn), c=P(p[0],p[1],p[2]);
+    if(Math.hypot(e.clientX-c.x, e.clientY-c.y+.35*u)<1.35*u){ canFerry=true; canRotate=false; f0=ferryS.t; }
+  }
+  pdown={x:e.clientX,y:e.clientY, rotating:false, ferrying:false,
+         canRotate, canFerry, a0, ang0, f0};
   cv.setPointerCapture(e.pointerId);
 });
 cv.addEventListener("pointermove",e=>{
   if(!pdown) return;
-  if(!pdown.rotating && pdown.canRotate &&
+  if(!pdown.rotating && !pdown.ferrying &&
      Math.hypot(e.clientX-pdown.x,e.clientY-pdown.y)>9){
-    pdown.rotating=true; rotor.drag=true;
+    if(pdown.canFerry) pdown.ferrying=true;
+    else if(pdown.canRotate){ pdown.rotating=true; rotor.drag=true; }
   }
   if(pdown.rotating){
     const piv=P(rotor.p[0],rotor.p[1],rotor.z);
@@ -644,15 +867,39 @@ cv.addEventListener("pointermove",e=>{
     while(d>Math.PI)d-=2*Math.PI; while(d<-Math.PI)d+=2*Math.PI;
     rotor.angle=pdown.ang0+d;
   }
+  if(pdown.ferrying){
+    const f=level.ferry, A=P(f.a[0],f.a[1],f.z), B=P(f.b[0],f.b[1],f.z);
+    const vx=B.x-A.x, vy=B.y-A.y, L2=vx*vx+vy*vy;
+    ferryS.tf=Math.max(0,Math.min(1,
+      pdown.f0 + ((e.clientX-pdown.x)*vx+(e.clientY-pdown.y)*vy)/L2));
+  }
 });
+function tryTide(){
+  if(busy()||chs.some(c=>c.path.length)) return;
+  const newW=tideS.hi?level.tide.low:level.tide.high;
+  const drowning=chs.find(c=>activeChar(c)&&c.node.kind==="static"&&nodePos(c.node)[2]<newW-0.01);
+  if(drowning){ pulses.push({g:nodePos(drowning.node),t0:now}); sndNope(); return; }
+  usedTide=true; sndTide();
+  tideS.anim={from:tideS.w, to:newW, t0:now, dur:900};
+}
+
 function endPointer(e){
   if(!pdown) return;
-  if(pdown.rotating){
+  if(pdown.ferrying){
+    const target=Math.round(ferryS.tf);
+    if(target!==pdown.f0){ usedFerry=true; sndSail(); }
+    ferryS.anim={from:ferryS.tf,to:target,t0:now,dur:260};
+  }else if(pdown.rotating){
     rotor.drag=false;
     const q=Math.PI/2, target=Math.round(rotor.angle/q)*q;
     if(Math.round(target/q)!==Math.round(pdown.ang0/q)){ rotatedThisLevel=true; sndSnap(); }
     rotor.anim={from:rotor.angle,to:target,t0:now,dur:240};
-  }else if(mode==="play" && !rotor.anim && !chs.some(c=>c.path.length)){
+  }else if(mode==="play" && !busy() && !chs.some(c=>c.path.length)){
+    // tap the tide dial → change the water level
+    if(level.tide){
+      const d=level.tide.dial, c=P(d[0],d[1],d[2]);
+      if(Math.hypot(e.clientX-c.x,e.clientY-c.y)<.75*u){ tryTide(); pdown=null; return; }
+    }
     // tap a traveler → select them
     for(let i=0;i<chs.length;i++){
       const c=chs[i]; if(!activeChar(c)) continue;
@@ -665,6 +912,7 @@ function endPointer(e){
     // tile click → walk (selected traveler first, then the other)
     let best=null;
     for(const n of nodes){
+      if(submerged(n)) continue;
       const g=nodePos(n), c=P(g[0],g[1],g[2]);
       const dx=Math.abs(e.clientX-c.x)/u, dy=Math.abs(e.clientY-c.y)/(u/2);
       if(dx+dy<=1.05){
@@ -690,6 +938,7 @@ function endPointer(e){
 cv.addEventListener("pointerup",endPointer);
 cv.addEventListener("pointercancel",()=>{ if(pdown&&pdown.rotating){
   const q=Math.PI/2; rotor.anim={from:rotor.angle,to:Math.round(rotor.angle/q)*q,t0:now,dur:200}; }
+  if(pdown&&pdown.ferrying) ferryS.anim={from:ferryS.tf,to:Math.round(ferryS.tf),t0:now,dur:200};
   pdown=null; });
 
 /* ============================== START =============================== */
