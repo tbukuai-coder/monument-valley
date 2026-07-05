@@ -36,11 +36,11 @@ real, walkable connection. Concretely, with screen projection `sx = x − y`,
 
 - All level data lives in the `LEVELS` array between the `/* LEVELS-START */` and
   `/* LEVELS-END */` markers in `index.html`.
-- Levels can be verified headlessly: a validator that replicates the adjacency rule
-  and BFS-searches the (tile, rotation) state space checks that each chapter is
-  solvable, cannot be solved without rotating, and has no stranding states. If you
-  change level data, re-run that check (the original script pattern: extract the
-  LEVELS block, build edges per rotation state, BFS with walk/rotate actions).
+- Levels are verified headlessly with `node validate.js`: it replicates the
+  adjacency rule and BFS-searches the full joint state space (characters ×
+  rotation × ferry × tide × orb), checking that each chapter is solvable, cannot
+  be solved without its mechanisms, has only intended impossible-geometry edges,
+  and has no stranding states. Run it after any level or logic change.
 - Rendering is canvas 2D with painter's-algorithm depth sort (`key = x + y + 0.62z`).
 - Sound is a tiny WebAudio synth (steps, rotation thock, completion chime); mutable
   via the corner button.
