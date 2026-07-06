@@ -35,6 +35,16 @@ heights in the underlying grid. Rotating a bridge into visual alignment creates 
 real, walkable connection. Concretely, with screen projection `sx = x − y`,
 `sy = (x + y)/2 − z`, tiles connect iff `|Δsx| = 1` and `|Δsy| = 0.5`.
 
+## Homepage
+
+`home.html` is an animated landing page for the game: the hero is a live canvas
+diorama drawn with the game's own projection and painter's sort — a rose bridge
+turns on a timer and a small traveler crosses the impossible gap it creates —
+plus a chapter index (each card carries its chapter's real sky palette), the
+adjacency rule, and the mechanisms. Light theme is Chapter I's dawn; dark theme
+is Chapter VI's night. Served at
+https://tbukuai-coder.github.io/monument-valley/home.html
+
 ## Development notes
 
 - All level data lives in the `LEVELS` array between the `/* LEVELS-START */` and
