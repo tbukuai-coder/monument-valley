@@ -37,12 +37,16 @@ real, walkable connection. Concretely, with screen projection `sx = x − y`,
 
 ## Homepage
 
-`home.html` is an animated landing page for the game: the hero is a live canvas
-diorama drawn with the game's own projection and painter's sort — a rose bridge
-turns on a timer and a small traveler crosses the impossible gap it creates —
-plus a chapter index (each card carries its chapter's real sky palette), the
-adjacency rule, and the mechanisms. Light theme is Chapter I's dawn; dark theme
-is Chapter VI's night. Served at
+`home.html` is an animated landing page for the game (v2), drawn with the
+game's own projection and painter's sort. The hero is an atmospheric diorama —
+a spired monument on a plateau with drifting clouds, bobbing floating islands,
+passing birds, and mouse parallax. Below it the rose-bridge demo is
+**interactive**: drag the bridge (or use the button) until the road lines up
+and a traveler crosses the impossible gap, driven by the engine's real
+adjacency rule. Then a scroll-driven journey morphs the sky through all ten
+chapters' palettes (sun, moon, and stars included) past a frosted card per
+chapter, followed by the mechanisms with animated icons. Light theme is
+Chapter I's dawn; dark theme is Chapter VI's night. Served at
 https://tbukuai-coder.github.io/monument-valley/home.html
 
 ## Development notes
