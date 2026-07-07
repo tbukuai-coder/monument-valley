@@ -37,17 +37,23 @@ real, walkable connection. Concretely, with screen projection `sx = x − y`,
 
 ## Homepage
 
-`home.html` is an animated landing page for the game (v2), drawn with the
-game's own projection and painter's sort. The hero is an atmospheric diorama —
-a spired monument on a plateau with drifting clouds, bobbing floating islands,
-passing birds, and mouse parallax. Below it the rose-bridge demo is
-**interactive**: drag the bridge (or use the button) until the road lines up
-and a traveler crosses the impossible gap, driven by the engine's real
-adjacency rule. Then a scroll-driven journey morphs the sky through all ten
-chapters' palettes (sun, moon, and stars included) past a frosted card per
-chapter, followed by the mechanisms with animated icons. Light theme is
-Chapter I's dawn; dark theme is Chapter VI's night. Served at
-https://tbukuai-coder.github.io/monument-valley/home.html
+Two animated landing pages, both drawn with the game's own projection and
+painter's sort, both themed (light = Chapter I's dawn, dark = Chapter VI's
+night):
+
+- `home.html` (v1) — the hero is a live diorama on a timer: a rose bridge
+  turns and a small traveler crosses the impossible gap it creates; below,
+  a chapter index (each card carries its chapter's real sky palette), the
+  adjacency rule, and the mechanisms.
+  https://tbukuai-coder.github.io/monument-valley/home.html
+- `home-v2.html` (v2) — an atmospheric parallax hero (spired monument,
+  drifting clouds, bobbing floating islands, passing birds); an
+  **interactive** rose-bridge demo — drag the bridge (or use the button)
+  until the road lines up and a traveler crosses, driven by the engine's
+  real adjacency rule; and a scroll-driven journey that morphs the sky
+  through all ten chapters' palettes (sun, moon, and stars) past a frosted
+  card per chapter, plus animated mechanism icons.
+  https://tbukuai-coder.github.io/monument-valley/home-v2.html
 
 ## Development notes
 
