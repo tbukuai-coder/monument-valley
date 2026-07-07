@@ -37,8 +37,8 @@ real, walkable connection. Concretely, with screen projection `sx = x − y`,
 
 ## Homepage
 
-Two animated landing pages, both drawn with the game's own projection and
-painter's sort, both themed (light = Chapter I's dawn, dark = Chapter VI's
+Three animated landing pages, all drawn with the game's own projection and
+painter's sort, all themed (light = Chapter I's dawn, dark = Chapter VI's
 night):
 
 - `home.html` (v1) — the hero is a live diorama on a timer: a rose bridge
@@ -54,6 +54,16 @@ night):
   through all ten chapters' palettes (sun, moon, and stars) past a frosted
   card per chapter, plus animated mechanism icons.
   https://tbukuai-coder.github.io/monument-valley/home-v2.html
+- `home-v3.html` (v3) — one scroll, one story: a single sticky diorama whose
+  timeline is the scrollbar. Scrubbing plays the whole arc in one persistent
+  scene — the rose bridge turns into the road, a spark runs the impossible
+  edge, the child arrives, the mother ascends at night and the road turns
+  away, the tide drowns the garden and a boat lifts the grown child level
+  with the door, the old light descends from its perch, and the door takes
+  her. Sky, architecture tints, sun/moon, stars, and sea all interpolate
+  with scroll (9 palette keyframes); frosted caption cards float past;
+  fully scrubbable in both directions.
+  https://tbukuai-coder.github.io/monument-valley/home-v3.html
 
 ## Development notes
 
